@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Logo from './Logo';
-import authBg from '../assets/auth-bg.png';
+import authBg from '../assets/auth-bg-new.jpg';
 
 const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     const [mode, setMode] = useState(initialMode);
@@ -30,7 +30,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                     <img
                         src={authBg}
                         alt="Eco Friendly"
-                        className="absolute inset-0 w-full h-full object-cover object-center"
+                        className="absolute inset-0 w-full h-full object-contain object-center"
                     />
                 </div>
 

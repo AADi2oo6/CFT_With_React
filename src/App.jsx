@@ -4,6 +4,14 @@ import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import QuotesSection from './components/QuotesSection';
 import EmissionsMap from './components/EmissionsMap';
+import ImpactSection from './components/ImpactSection';
+import CommunityImpactMap from './components/CommunityImpactMap';
+import EcoChampions from './components/EcoChampions';
+import LiveActions from './components/LiveActions';
+import ActionableInsights from './components/ActionableInsights';
+import EmissionBreakdown from './components/EmissionBreakdown';
+import CountryComparison from './components/CountryComparison';
+import FloatingNav from './components/FloatingNav';
 import './App.css'
 
 function App() {
@@ -21,8 +29,10 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans pt-16">
       <Header onLoginClick={openLogin} onRegisterClick={openRegister} />
+
+      <FloatingNav />
 
       <AuthModal
         isOpen={isAuthModalOpen}
@@ -31,8 +41,15 @@ function App() {
       />
 
       <main className="flex-grow">
-        <QuotesSection />
-        <EmissionsMap />
+        <div id="welcome"><QuotesSection /></div>
+        <div id="global-emissions"><EmissionsMap /></div>
+        <div id="community-stats"><ImpactSection /></div>
+        <div id="heatmap"><CommunityImpactMap /></div>
+        <div id="leaderboard"><EcoChampions /></div>
+        <div id="live-feed"><LiveActions /></div>
+        <div id="insights"><ActionableInsights /></div>
+        <div id="breakdown"><EmissionBreakdown /></div>
+        <div id="comparison"><CountryComparison /></div>
       </main>
       <Footer />
     </div>

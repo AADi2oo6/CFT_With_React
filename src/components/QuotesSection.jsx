@@ -26,7 +26,7 @@ const QuotesSection = () => {
 
     return (
         <section className="py-16 px-4">
-            <div className="container mx-auto max-w-5xl bg-teal-50 rounded-[3rem] p-12 text-center shadow-sm">
+            <div className="max-w-6xl mx-auto bg-teal-50 rounded-[3rem] p-12 text-center shadow-sm">
                 {/* Quote Icon */}
                 <div className="mb-6 flex justify-center">
                     <svg className="w-16 h-16 text-teal-400" fill="currentColor" viewBox="0 0 24 24">
@@ -35,7 +35,7 @@ const QuotesSection = () => {
                 </div>
 
                 {/* Quote Text */}
-                <div className={`transition-opacity duration-500 ease-in-out ${isFading ? 'opacity-0' : 'opacity-100'}`}>
+                <div className={`transition-opacity duration-500 ease-in-out min-h-[150px] flex flex-col justify-center ${isFading ? 'opacity-0' : 'opacity-100'}`}>
                     <h2 className="text-3xl md:text-5xl font-medium text-gray-800 mb-6 leading-tight tracking-tight">
                         {quotes[currentIndex].text}
                     </h2>

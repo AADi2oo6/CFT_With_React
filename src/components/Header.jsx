@@ -5,8 +5,8 @@ const Header = ({ onLoginClick, onRegisterClick }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     return (
-        <header className="bg-teal-500 text-white shadow-md">
-            <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+        <header className="bg-teal-500 text-white shadow-md fixed top-0 w-full z-50">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
                 {/* Logo */}
                 <div className="flex items-center space-x-2">
                     <Logo className="w-8 h-8 text-white" />

@@ -5,7 +5,7 @@ const EmissionsMap = () => {
 
     return (
         <section className="py-16 px-4 bg-white">
-            <div className="container mx-auto max-w-5xl">
+            <div className="max-w-6xl mx-auto">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 bg-gray-50">
                     <h2 className="text-3xl font-bold text-center text-gray-800 mb-4">
                         Annual Global CO₂ Emissions
