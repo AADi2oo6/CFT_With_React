@@ -4,12 +4,56 @@ import authBg from '../assets/auth-bg-new.jpg';
 
 const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     const [mode, setMode] = useState(initialMode);
+    const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     useEffect(() => {
         setMode(initialMode);
+        setFormData({ username: '', email: '', password: '' });
+        setError('');
+        setSuccess('');
     }, [initialMode, isOpen]);
 
     if (!isOpen) return null;
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+
+        const url = mode === 'login'
+            ? 'http://127.0.0.1:8000/api/login/'
+            : 'http://127.0.0.1:8000/api/register/';
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                setSuccess(mode === 'login' ? 'Login successful!' : 'Registration successful! Please login.');
+                if (mode === 'register') {
+                    setTimeout(() => setMode('login'), 1500);
+                } else {
+                    // Handle login success (save token, etc.)
+                    console.log('Token:', data.token);
+                    setTimeout(onClose, 1500);
+                }
+            } else {
+                setError(data.error || 'Something went wrong');
+            }
+        } catch (err) {
+            setError('Failed to connect to server');
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -50,13 +94,20 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                         </p>
                     </div>
 
-                    <form className="space-y-4">
+                    {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center">{error}</div>}
+                    {success && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm text-center">{success}</div>}
+
+                    <form className="space-y-4" onSubmit={handleSubmit}>
                         {mode === 'register' && (
                             <div>
                                 <input
                                     type="text"
-                                    placeholder="Full Name"
+                                    name="username"
+                                    placeholder="Username"
+                                    value={formData.username}
+                                    onChange={handleChange}
                                     className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
+                                    required
                                 />
                             </div>
                         )}
@@ -64,23 +115,25 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                         <div>
                             <input
                                 type="email"
+                                name="email"
                                 placeholder="Enter email"
+                                value={formData.email}
+                                onChange={handleChange}
                                 className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
+                                required={mode === 'register'} // Email usually required for register, maybe not for login if using username
                             />
                         </div>
 
                         <div className="relative">
                             <input
                                 type="password"
+                                name="password"
                                 placeholder="Password"
+                                value={formData.password}
+                                onChange={handleChange}
                                 className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
+                                required
                             />
-                            <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                            </button>
                         </div>
 
                         {mode === 'login' && (
@@ -93,7 +146,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                             </div>
                         )}
 
-                        <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-teal-500/30">
+                        <button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-teal-500/30">
                             {mode === 'login' ? 'Sign in' : 'Sign up'}
                         </button>
                     </form>
@@ -111,18 +164,6 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M7 11v2.4h3.97c-.16 1.029-1.2 3.02-3.97 3.02-2.39 0-4.34-1.979-4.34-4.42 0-2.44 1.95-4.42 4.34-4.42 1.36 0 2.27.58 2.79 1.08l1.9-1.83c-1.22-1.14-2.8-1.83-4.69-1.83-3.87 0-7 3.13-7 7s3.13 7 7 7c4.04 0 6.721-2.84 6.721-6.84 0-.46-.051-.81-.111-1.16h-6.61zm0 0 17 2h-3v3h-2v-3h-3v-2h3v-3h2v3h3v2z" /></svg>
                             </button>
                         </div>
-                    </div>
-
-                    <div className="mt-8 text-center text-sm">
-                        <span className="text-gray-500">
-                            {mode === 'login' ? 'Not registered? ' : 'Already have an account? '}
-                        </span>
-                        <button
-                            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                            className="text-teal-600 hover:text-teal-700 font-bold"
-                        >
-                            {mode === 'login' ? 'Create account' : 'Login'}
-                        </button>
                     </div>
                 </div>
             </div>
