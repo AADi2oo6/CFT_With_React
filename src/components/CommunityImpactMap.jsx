@@ -1,7 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { API_URL } from '../App';
 
 const CommunityImpactMap = () => {
     const [activeTab, setActiveTab] = useState('population');
+    const [mapHtml, setMapHtml] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchMap = async () => {
+            try {
+                setLoading(true);
+                const response = await fetch(`${API_URL}/community-impact-map/`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch map data');
+                }
+                const data = await response.json();
+                setMapHtml(data.map_html);
+            } catch (err) {
+                console.error("Error fetching map:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMap();
+    }, []);
 
     return (
         <section className="py-16 px-4 bg-white dark:bg-gray-800 transition-colors duration-300">
@@ -45,32 +70,36 @@ const CommunityImpactMap = () => {
                     </button>
                 </div>
 
-                {/* Map Container (Loading State) */}
+                {/* Map Container */}
                 <div className="w-full h-[600px] bg-gray-50 dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-center justify-center relative overflow-hidden group transition-colors">
 
-                    {/* Background Pattern */}
-                    <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.1]"
-                        style={{
-                            backgroundImage: 'radial-gradient(#000 1px, transparent 1px)',
-                            backgroundSize: '20px 20px'
-                        }}>
-                    </div>
-
-                    {/* Loading Content */}
-                    <div className="flex flex-col items-center z-10 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-                        <div className="relative mb-6">
-                            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-teal-500"></div>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <svg className="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                    {loading ? (
+                        <div className="flex flex-col items-center z-10 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+                            <div className="relative mb-6">
+                                <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-teal-500"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <svg className="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
                             </div>
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2 transition-colors">Loading Community Map...</h3>
+                            <p className="text-gray-500 dark:text-gray-400 text-center max-w-xs transition-colors">
+                                Connecting to geospatial server to retrieve data...
+                            </p>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2 transition-colors">Loading Community Map...</h3>
-                        <p className="text-gray-500 dark:text-gray-400 text-center max-w-xs transition-colors">
-                            Connecting to geospatial server to retrieve {activeTab === 'population' ? 'population' : 'emission'} data...
-                        </p>
-                    </div>
+                    ) : error ? (
+                        <div className="text-red-500 text-center p-4">
+                            <p>Error loading map: {error}</p>
+                        </div>
+                    ) : (
+                        <iframe
+                            srcDoc={mapHtml}
+                            title="Community Impact Map"
+                            className="w-full h-full border-none rounded-2xl"
+                            sandbox="allow-scripts allow-same-origin"
+                        />
+                    )}
                 </div>
             </div>
         </section>

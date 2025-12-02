@@ -18,7 +18,7 @@ import DailyEngagement from './components/DailyEngagement';
 import ProfilePage from './components/ProfilePage';
 import './App.css'
 
-const API_URL = 'http://127.0.0.1:8000/api';
+export const API_URL = 'http://127.0.0.1:8000/api';
 
 function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
