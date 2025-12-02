@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import EditProfileModal from './EditProfileModal';
 
-const ProfileSidebar = ({ user, onUpdateProfile }) => {
+const ProfileSidebar = ({ user, onUpdateProfile, onNavigate }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     return (
@@ -30,6 +30,8 @@ const ProfileSidebar = ({ user, onUpdateProfile }) => {
                     </svg>
                     Edit Profile
                 </button>
+
+
 
                 <div className="space-y-3 text-left text-sm text-gray-600 dark:text-gray-300 transition-colors">
                     <div className="flex items-center gap-3">

@@ -13,7 +13,7 @@ const EngagementCard = ({ title, icon, children, accentColor }) => (
     </div>
 );
 
-const DailyEngagement = () => {
+const DailyEngagement = ({ onNavigate }) => {
     return (
         <div>
             <h2 className="text-3xl font-bold text-teal-800 dark:text-teal-400 mb-8 text-center transition-colors duration-300">Daily Engagement</h2>
@@ -45,7 +45,7 @@ const DailyEngagement = () => {
                 {/* Quick Actions */}
                 <EngagementCard title="Quick Actions" icon="⚡" accentColor="bg-teal-500">
                     <div className="space-y-3">
-                        <button className="w-full text-left px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-200 font-medium hover:border-teal-500 dark:hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-gray-600 transition-all flex items-center group">
+                        <button onClick={() => onNavigate && onNavigate('log-activity')} className="w-full text-left px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-200 font-medium hover:border-teal-500 dark:hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-gray-600 transition-all flex items-center group">
                             <span className="mr-3 text-lg group-hover:scale-110 transition-transform">+</span> Log Activity
                         </button>
                         <button className="w-full text-left px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-200 font-medium hover:border-teal-500 dark:hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-gray-600 transition-all flex items-center group">

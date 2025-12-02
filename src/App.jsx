@@ -15,6 +15,7 @@ import FloatingNav from './components/FloatingNav';
 import ImpactStats from './components/ImpactStats';
 import RecentActivities from './components/RecentActivities';
 import DailyEngagement from './components/DailyEngagement';
+import LogActivity from './components/LogActivity';
 import ProfilePage from './components/ProfilePage';
 import './App.css'
 
@@ -92,6 +93,29 @@ function App() {
     }
   }, [currentPage, user]);
 
+  useEffect(() => {
+    // Sync state with browser history on popstate (back/forward button)
+    const handlePopState = (event) => {
+      if (event.state && event.state.page) {
+        setCurrentPage(event.state.page);
+        localStorage.setItem('currentPage', event.state.page);
+      } else {
+        // Default to home if no state (e.g., initial load or external link)
+        setCurrentPage('home');
+        localStorage.setItem('currentPage', 'home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Initial replaceState to ensure current page is in history
+    window.history.replaceState({ page: currentPage }, '', window.location.pathname);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const handleNavigate = (page) => {
     // Protected routes check
     if (page === 'profile' && !user) {
@@ -103,6 +127,9 @@ function App() {
     setCurrentPage(page);
     localStorage.setItem('currentPage', page);
     window.scrollTo(0, 0);
+
+    // Push new state to history
+    window.history.pushState({ page: page }, '', window.location.pathname);
   };
 
   const handleUpdateProfile = async (updatedData) => {
@@ -185,7 +212,7 @@ function App() {
       <main className="flex-grow pt-6">
         {currentPage === 'home' ? (
           <>
-            <div id="welcome"><QuotesSection /></div>
+            <div id="welcome"><QuotesSection onNavigate={handleNavigate} /></div>
 
             {user && (
               <div className="max-w-6xl mx-auto px-4 mb-12">
@@ -194,7 +221,7 @@ function App() {
                   <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
                   <div id="recent-activities"><RecentActivities /></div>
                   <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
-                  <div id="daily-engagement"><DailyEngagement /></div>
+                  <div id="daily-engagement"><DailyEngagement onNavigate={handleNavigate} /></div>
                 </div>
               </div>
             )}
@@ -208,13 +235,15 @@ function App() {
             <div id="emission-breakdown"><EmissionBreakdown /></div>
             <div id="country-comparison"><CountryComparison /></div>
           </>
+        ) : currentPage === 'log-activity' ? (
+          <LogActivity />
         ) : (
-          <ProfilePage user={user} onUpdateProfile={handleUpdateProfile} isDarkMode={isDarkMode} />
+          <ProfilePage user={user} onUpdateProfile={handleUpdateProfile} isDarkMode={isDarkMode} onNavigate={handleNavigate} />
         )}
       </main>
 
       <Footer />
-    </div>
+    </div >
   );
 }
 

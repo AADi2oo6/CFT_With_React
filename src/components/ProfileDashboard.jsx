@@ -1,7 +1,7 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 
-const ProfileDashboard = ({ isDarkMode }) => {
+const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
     // Mock Data for Charts
     const footprintData = [
         { month: 'Jul 2025', value: 0 },
@@ -73,7 +73,10 @@ const ProfileDashboard = ({ isDarkMode }) => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-white transition-colors">Your Dashboard</h1>
-                <button className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors shadow-sm text-sm">
+                <button
+                    onClick={() => onNavigate && onNavigate('log-activity')}
+                    className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors shadow-sm text-sm"
+                >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>

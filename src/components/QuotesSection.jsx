@@ -8,7 +8,7 @@ const quotes = [
     { text: "Time spent among trees is never time wasted.", author: "Katrina Mayer" }
 ];
 
-const QuotesSection = () => {
+const QuotesSection = ({ onNavigate }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFading, setIsFading] = useState(false);
 
@@ -46,7 +46,10 @@ const QuotesSection = () => {
 
                 {/* Action Buttons */}
                 <div className="mt-12 flex flex-col sm:flex-row justify-center gap-6">
-                    <button className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                    <button
+                        onClick={() => onNavigate && onNavigate('log-activity')}
+                        className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
