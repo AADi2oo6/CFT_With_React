@@ -18,6 +18,8 @@ import DailyEngagement from './components/DailyEngagement';
 import LogActivity from './components/LogActivity';
 import ProfilePage from './components/ProfilePage';
 import Community from './components/Community';
+import Challenges from './components/Challenges';
+import BackgroundAnimation from './components/BackgroundAnimation';
 import './App.css'
 
 export const API_URL = 'http://127.0.0.1:8000/api';
@@ -189,7 +191,8 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans pt-16 transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans pt-16 transition-colors duration-300 relative">
+      <BackgroundAnimation />
       <Header
         user={user}
         onLoginClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
@@ -240,6 +243,8 @@ function App() {
           <LogActivity />
         ) : currentPage === 'community' ? (
           <Community />
+        ) : currentPage === 'challenges' ? (
+          <Challenges />
         ) : (
           <ProfilePage user={user} onUpdateProfile={handleUpdateProfile} isDarkMode={isDarkMode} onNavigate={handleNavigate} />
         )}
