@@ -3,59 +3,86 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
     // Mock Data for Charts
-    const footprintData = [
-        { month: 'Jul 2025', value: 0 },
-        { month: 'Aug 2025', value: 0 },
-        { month: 'Sep 2025', value: 0 },
-        { month: 'Oct 2025', value: 30 },
-        { month: 'Nov 2025', value: 350 },
-        { month: 'Dec 2025', value: 0 },
-    ];
+    const [footprintData, setFootprintData] = React.useState([]);
+    const [categoryData, setCategoryData] = React.useState([]);
+    const [monthlyFootprint, setMonthlyFootprint] = React.useState(0);
 
-    const categoryData = [
-        { name: 'Transport', value: 40, color: '#22c55e' }, // green-500
-        { name: 'Food', value: 30, color: '#0ea5e9' }, // sky-500
-        { name: 'Consumption', value: 20, color: '#eab308' }, // yellow-500
-        { name: 'Energy', value: 10, color: '#ef4444' }, // red-500
-    ];
+    // Gamification Data
+    const [heatmapGrid, setHeatmapGrid] = React.useState([]);
+    const [streakStats, setStreakStats] = React.useState({ totalActiveDays: 0, maxStreak: 0 });
 
-    // Mock Data for Streak Heatmap (GitHub style)
-    // Generating a grid of 7 rows (days) x 53 columns (weeks) for a full year
-    const generateHeatmapData = () => {
+    const fetchStats = async () => {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const emailParam = user.email ? `?email=${user.email}` : '';
+
+            // 1. Dashboard Stats
+            const dashboardRes = await fetch(`http://127.0.0.1:8000/api/dashboard-stats/${emailParam}`);
+            if (dashboardRes.ok) {
+                const data = await dashboardRes.json();
+                setFootprintData(data.trend_data);
+
+                const colors = {
+                    transport: '#22c55e', food: '#0ea5e9', consumption: '#eab308',
+                    energy: '#ef4444', waste: '#6b7280'
+                };
+                const formattedCategoryData = Object.entries(data.category_breakdown).map(([key, value]) => ({
+                    name: key.charAt(0).toUpperCase() + key.slice(1),
+                    value: value,
+                    color: colors[key] || '#cbd5e1'
+                })).filter(item => item.value > 0);
+                setCategoryData(formattedCategoryData);
+                setMonthlyFootprint(data.emission_stats.this_month);
+            }
+
+            // 2. Gamification Stats (Heatmap)
+            const gamificationRes = await fetch(`http://127.0.0.1:8000/api/gamification-stats/${emailParam}`);
+            if (gamificationRes.ok) {
+                const data = await gamificationRes.json();
+                setStreakStats({
+                    totalActiveDays: data.activity_heatmap.total_active_days,
+                    maxStreak: data.activity_heatmap.max_streak
+                });
+                processHeatmapData(data.activity_heatmap.daily_counts);
+            }
+
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
+
+    const processHeatmapData = (dailyCounts) => {
         const weeks = 53;
         const days = 7;
-        const data = [];
+        const grid = [];
         const today = new Date();
-        // Start from 52 weeks ago
         const startDate = new Date(today);
-        startDate.setDate(today.getDate() - (weeks * days));
+        startDate.setDate(today.getDate() - (weeks * days) + 1); // Align to end on today roughly
 
         for (let w = 0; w < weeks; w++) {
             const week = [];
             for (let d = 0; d < days; d++) {
                 const currentDate = new Date(startDate);
                 currentDate.setDate(startDate.getDate() + (w * 7) + d);
-                const dateStr = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const dateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+                const count = dailyCounts[dateStr] || 0;
 
-                // Randomly assign activity levels (0-4)
-                const rand = Math.random();
                 let level = 0;
-                if (rand > 0.85) level = 1;
-                if (rand > 0.92) level = 2;
-                if (rand > 0.96) level = 3;
-                if (rand > 0.99) level = 4;
+                if (count > 0) level = 1;
+                if (count > 2) level = 2;
+                if (count > 5) level = 3;
+                if (count > 10) level = 4;
 
-                // Hardcode some patterns
-                if (w > 40 && w < 45 && d > 1 && d < 6) level = Math.floor(Math.random() * 3) + 1;
-
-                week.push({ level, date: dateStr });
+                week.push({ level, date: dateStr, count });
             }
-            data.push(week);
+            grid.push(week);
         }
-        return data;
+        setHeatmapGrid(grid);
     };
 
-    const heatmapData = generateHeatmapData();
+    React.useEffect(() => {
+        fetchStats();
+    }, []);
 
     const getHeatmapColor = (level) => {
         switch (level) {
@@ -93,7 +120,7 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                     </div>
                     <div>
                         <p className="text-gray-500 dark:text-gray-400 text-sm font-medium transition-colors">Monthly Footprint</p>
-                        <p className="text-2xl font-bold text-gray-800 dark:text-white transition-colors">0 kg CO₂e</p>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-white transition-colors">{monthlyFootprint} kg CO₂e</p>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between transition-colors duration-300">
@@ -112,19 +139,22 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
                 <div className="mb-4">
                     <h3 className="text-lg font-bold text-gray-800 dark:text-white transition-colors">Activity Streak</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1 transition-colors">Total Active Days: <span className="font-bold text-gray-800 dark:text-white">0</span> | Max Streak: <span className="font-bold text-gray-800 dark:text-white">0</span></p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1 transition-colors">
+                        Total Active Days: <span className="font-bold text-gray-800 dark:text-white">{streakStats.totalActiveDays}</span> |
+                        Max Streak: <span className="font-bold text-gray-800 dark:text-white">{streakStats.maxStreak}</span>
+                    </p>
                 </div>
 
                 {/* Heatmap Grid */}
                 <div className="w-full overflow-x-auto pb-2">
                     <div className="flex gap-[3px] min-w-max">
-                        {heatmapData.map((week, wIndex) => (
+                        {heatmapGrid.map((week, wIndex) => (
                             <div key={wIndex} className="flex flex-col gap-[3px]">
                                 {week.map((day, dIndex) => (
                                     <div
                                         key={`${wIndex}-${dIndex}`}
                                         className={`w-[10px] h-[10px] rounded-[2px] ${getHeatmapColor(day.level)} hover:ring-2 hover:ring-teal-400 transition-all cursor-pointer relative group`}
-                                        title={`${day.date}: ${day.level} activities`}
+                                        title={`${day.date}: ${day.count} activities`}
                                     ></div>
                                 ))}
                             </div>

@@ -4,6 +4,29 @@ import EditProfileModal from './EditProfileModal';
 const ProfileSidebar = ({ user, onUpdateProfile, onNavigate }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+    const [budget, setBudget] = useState({ monthly_limit: 500, monthly_used: 0 });
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                let url = 'http://127.0.0.1:8000/api/dashboard-stats/';
+                if (user.email) {
+                    url += `?email=${user.email}`;
+                }
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    setBudget(data.budget);
+                }
+            } catch (error) {
+                console.error('Error fetching budget stats:', error);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
     return (
         <div className="space-y-6">
             {/* Profile Card */}
@@ -60,10 +83,13 @@ const ProfileSidebar = ({ user, onUpdateProfile, onNavigate }) => {
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors duration-300">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 transition-colors">Monthly Carbon Budget</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 transition-colors">
-                    You have used <span className="font-bold text-gray-900 dark:text-white">0 kg</span> of your <span className="font-bold text-gray-900 dark:text-white">500.0 kg</span> allowance.
+                    You have used <span className="font-bold text-gray-900 dark:text-white">{budget.monthly_used} kg</span> of your <span className="font-bold text-gray-900 dark:text-white">{budget.monthly_limit} kg</span> allowance.
                 </p>
                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden transition-colors">
-                    <div className="bg-teal-500 h-3 rounded-full" style={{ width: '0%' }}></div>
+                    <div
+                        className={`h-3 rounded-full ${budget.monthly_used > budget.monthly_limit ? 'bg-red-500' : 'bg-teal-500'}`}
+                        style={{ width: `${Math.min((budget.monthly_used / budget.monthly_limit) * 100, 100)}%` }}
+                    ></div>
                 </div>
             </div>
 

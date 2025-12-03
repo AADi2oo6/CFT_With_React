@@ -31,12 +31,60 @@ const LogActivity = () => {
         }
     };
 
-    const dummyHistory = [
-        { id: 1, category: 'transport', description: 'Commute to work (Bus)', date: '2025-12-02', footprint: '2.5' },
-        { id: 2, category: 'energy', description: 'Smart Plug Usage', date: '2025-12-01', footprint: '1.2' },
-        { id: 3, category: 'food', description: 'Vegetarian Lunch', date: '2025-12-01', footprint: '0.8' },
-        { id: 4, category: 'waste', description: 'Recycled Paper', date: '2025-11-30', footprint: '-0.5' },
-    ];
+    const [history, setHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [filters, setFilters] = useState({ date: '', category: 'all' });
+
+    const fetchActivities = async () => {
+        setLoadingHistory(true);
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            let url = 'http://127.0.0.1:8000/api/log-activity/';
+            const params = new URLSearchParams();
+
+            if (user.email) params.append('email', user.email);
+            if (filters.date) params.append('date', filters.date);
+            if (filters.category !== 'all') params.append('category', filters.category);
+
+            const response = await fetch(`${url}?${params.toString()}`);
+            if (response.ok) {
+                const data = await response.json();
+                setHistory(data);
+            }
+        } catch (error) {
+            console.error('Error fetching history:', error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchActivities();
+    }, [filters]);
+
+    const handleFilterChange = (field, value) => {
+        setFilters(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this activity?')) return;
+
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/api/log-activity/${id}/`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                setHistory(prev => prev.filter(item => item.id !== id));
+                setMessage({ type: 'success', text: 'Activity deleted successfully.' });
+            } else {
+                throw new Error('Failed to delete');
+            }
+        } catch (error) {
+            console.error('Error deleting activity:', error);
+            setMessage({ type: 'error', text: 'Failed to delete activity.' });
+        }
+    };
 
     const getCategoryIcon = (category) => {
         switch (category) {
@@ -62,26 +110,145 @@ const LogActivity = () => {
         </button>
     );
 
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
+
+    const handleSubmit = async (category) => {
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        // Map frontend categories to backend model categories
+        let formCategory = category;
+        let apiCategory = category;
+
+        if (category === 'consumption') {
+            formCategory = 'purchase'; // Frontend state uses 'purchase'
+            apiCategory = 'consumption'; // Backend expects 'consumption'
+        } else if (category === 'travel') {
+            formCategory = 'travel'; // Frontend state uses 'travel'
+            apiCategory = 'transport'; // Backend expects 'transport'
+        }
+
+        const data = {
+            ...formData[formCategory],
+            category: apiCategory
+        };
+
+        if (category === 'consumption') {
+            data.purchaseCategory = formData.purchase.category;
+        }
+
+        try {
+            const token = localStorage.getItem('token'); // Assuming token is stored here
+            // Note: In the current setup, we might rely on session auth or the dummy token. 
+            // If using the dummy token from LoginView, we need to send it.
+            // However, the backend view currently checks request.user or email.
+            // Let's assume we send the email if not authenticated, or rely on session.
+            // For now, I'll try to send the email from localStorage if available, or just rely on the backend handling.
+
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.email) {
+                data.email = user.email;
+            }
+
+            const response = await fetch('http://127.0.0.1:8000/api/log-activity/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 'Authorization': `Token ${token}` // Uncomment if using Token auth
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Backend error:', errorData);
+                let errorMessage = 'Failed to log activity.';
+                if (typeof errorData === 'object') {
+                    const firstKey = Object.keys(errorData)[0];
+                    const firstError = errorData[firstKey];
+                    if (Array.isArray(firstError)) {
+                        errorMessage = `${firstKey}: ${firstError[0]}`;
+                    } else if (typeof firstError === 'string') {
+                        errorMessage = firstError;
+                    } else {
+                        errorMessage = JSON.stringify(errorData);
+                    }
+                }
+                throw new Error(errorMessage);
+            }
+
+            const result = await response.json();
+            setMessage({ type: 'success', text: `Successfully logged ${category} activity! (+${result.carbon_footprint_kg} kg CO2)` });
+            fetchActivities();
+
+            // Reset form for this category
+            setFormData(prev => ({
+                ...prev,
+                [formCategory]: { ...prev[formCategory] } // You might want to reset specific fields here
+            }));
+
+        } catch (error) {
+            console.error('Error logging activity:', error);
+            setMessage({ type: 'error', text: error.message || 'Failed to log activity. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const [stats, setStats] = useState({
+        emission_stats: { today: 0, yesterday: 0, this_month: 0, last_month: 0 },
+        budget: { daily_limit: 15, daily_used: 0, monthly_limit: 450, monthly_used: 0 }
+    });
+
+    const fetchStats = async () => {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            let url = 'http://127.0.0.1:8000/api/dashboard-stats/';
+            if (user.email) {
+                url += `?email=${user.email}`;
+            }
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                setStats(data);
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchStats();
+    }, [history]); // Refresh stats when history changes (i.e., after logging/deleting)
+
     return (
         <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+
+            {/* Message Alert */}
+            {message.text && (
+                <div className={`p-4 rounded-xl ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {message.text}
+                </div>
+            )}
 
             {/* Stats Summary Section */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">Today's Emissions</h3>
-                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">0 <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
+                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">{stats.emission_stats.today} <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">Yesterday's Emissions</h3>
-                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">0 <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
+                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">{stats.emission_stats.yesterday} <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">This Month</h3>
-                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">0 <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
+                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">{stats.emission_stats.this_month} <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">Last Month</h3>
-                    <p className="text-3xl font-bold text-green-500">348.99 <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
+                    <p className="text-3xl font-bold text-green-500">{stats.emission_stats.last_month} <span className="text-sm font-normal text-gray-500">kg CO₂e</span></p>
                 </div>
             </div>
 
@@ -89,16 +256,22 @@ const LogActivity = () => {
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <h3 className="font-bold text-gray-800 dark:text-white mb-4">Daily Budget</h3>
                     <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
-                        <div className="bg-teal-500 h-4 rounded-full" style={{ width: '0%' }}></div>
+                        <div
+                            className={`h-4 rounded-full ${stats.budget.daily_used > stats.budget.daily_limit ? 'bg-red-500' : 'bg-teal-500'}`}
+                            style={{ width: `${Math.min((stats.budget.daily_used / stats.budget.daily_limit) * 100, 100)}%` }}
+                        ></div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">Used 0 of 15 kg</p>
+                    <p className="text-sm text-gray-500 mt-2">Used {stats.budget.daily_used} of {stats.budget.daily_limit} kg</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <h3 className="font-bold text-gray-800 dark:text-white mb-4">Monthly Budget</h3>
                     <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
-                        <div className="bg-teal-500 h-4 rounded-full" style={{ width: '0%' }}></div>
+                        <div
+                            className={`h-4 rounded-full ${stats.budget.monthly_used > stats.budget.monthly_limit ? 'bg-red-500' : 'bg-teal-500'}`}
+                            style={{ width: `${Math.min((stats.budget.monthly_used / stats.budget.monthly_limit) * 100, 100)}%` }}
+                        ></div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">Used 0 of 450 kg</p>
+                    <p className="text-sm text-gray-500 mt-2">Used {stats.budget.monthly_used} of {stats.budget.monthly_limit} kg</p>
                 </div>
             </div>
 
@@ -155,8 +328,12 @@ const LogActivity = () => {
                                 <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">km</span>
                             </div>
                         </div>
-                        <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2">
-                            <i className="fas fa-plus-circle"></i>
+                        <button
+                            onClick={() => handleSubmit('travel')}
+                            disabled={loading}
+                            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus-circle"></i>}
                             Log Travel
                         </button>
                     </div>
@@ -254,8 +431,12 @@ const LogActivity = () => {
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1 text-left">Enter the units from your monthly electricity bill.</p>
                                 </div>
-                                <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2">
-                                    <i className="fas fa-plus-circle"></i>
+                                <button
+                                    onClick={() => handleSubmit('energy')}
+                                    disabled={loading}
+                                    className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus-circle"></i>}
                                     Log Energy
                                 </button>
                             </div>
@@ -321,8 +502,12 @@ const LogActivity = () => {
                             </div>
                         </div>
                         <p className="text-xs text-gray-500">Log the main component of your meal to get the best estimate of its carbon footprint.</p>
-                        <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2">
-                            <i className="fas fa-plus-circle"></i>
+                        <button
+                            onClick={() => handleSubmit('food')}
+                            disabled={loading}
+                            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus-circle"></i>}
                             Log Food
                         </button>
                     </div>
@@ -359,8 +544,12 @@ const LogActivity = () => {
                                 <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">INR</span>
                             </div>
                         </div>
-                        <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2">
-                            <i className="fas fa-plus-circle"></i>
+                        <button
+                            onClick={() => handleSubmit('consumption')} // Note: 'purchase' maps to 'consumption' in backend
+                            disabled={loading}
+                            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus-circle"></i>}
                             Log Purchase
                         </button>
                     </div>
@@ -397,8 +586,12 @@ const LogActivity = () => {
                                 <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">kg</span>
                             </div>
                         </div>
-                        <button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2">
-                            <i className="fas fa-plus-circle"></i>
+                        <button
+                            onClick={() => handleSubmit('waste')}
+                            disabled={loading}
+                            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus-circle"></i>}
                             Log Waste
                         </button>
                     </div>
@@ -410,15 +603,27 @@ const LogActivity = () => {
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 transition-colors">
                 <div className="flex items-center justify-between mb-8">
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Activity History</h2>
+                    <button onClick={fetchActivities} className="text-teal-500 hover:text-teal-600">
+                        <i className={`fas fa-sync-alt ${loadingHistory ? 'fa-spin' : ''}`}></i>
+                    </button>
                 </div>
 
                 {/* Filters */}
                 <div className="flex gap-4 mb-6">
                     <div className="relative flex-1">
-                        <input type="date" className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500 outline-none" />
+                        <input
+                            type="date"
+                            className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500 outline-none"
+                            value={filters.date}
+                            onChange={(e) => handleFilterChange('date', e.target.value)}
+                        />
                     </div>
                     <div className="relative flex-1">
-                        <select className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500 outline-none">
+                        <select
+                            className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500 outline-none"
+                            value={filters.category}
+                            onChange={(e) => handleFilterChange('category', e.target.value)}
+                        >
                             <option value="all">All Categories</option>
                             <option value="transport">Transportation</option>
                             <option value="energy">Energy</option>
@@ -440,29 +645,38 @@ const LogActivity = () => {
 
                 {/* List */}
                 <div className="space-y-2">
-                    {dummyHistory.map((item) => {
-                        const { icon, color } = getCategoryIcon(item.category);
-                        return (
-                            <div key={item.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-xl transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-700">
-                                <div className="col-span-4 flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color}`}>
-                                        <i className={icon}></i>
+                    {loadingHistory ? (
+                        <div className="text-center py-8 text-gray-500">Loading history...</div>
+                    ) : history.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">No activities found.</div>
+                    ) : (
+                        history.map((item) => {
+                            const { icon, color } = getCategoryIcon(item.category);
+                            return (
+                                <div key={item.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-xl transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-700">
+                                    <div className="col-span-4 flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color}`}>
+                                            <i className={icon}></i>
+                                        </div>
+                                        <span className="font-medium text-gray-800 dark:text-white capitalize">{item.category}</span>
                                     </div>
-                                    <span className="font-medium text-gray-800 dark:text-white capitalize">{item.category}</span>
+                                    <div className="col-span-4 text-gray-600 dark:text-gray-300">{item.description}</div>
+                                    <div className="col-span-2 text-gray-500 dark:text-gray-400 text-sm">{new Date(item.timestamp).toLocaleDateString()}</div>
+                                    <div className={`col-span-1 text-right font-bold ${item.carbon_footprint_kg < 0 ? 'text-green-500' : 'text-gray-800 dark:text-white'}`}>
+                                        {item.carbon_footprint_kg > 0 ? '+' : ''}{item.carbon_footprint_kg.toFixed(2)}
+                                    </div>
+                                    <div className="col-span-1 text-center">
+                                        <button
+                                            onClick={() => handleDelete(item.id)}
+                                            className="text-red-500 hover:text-red-700 transition-colors"
+                                        >
+                                            <i className="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="col-span-4 text-gray-600 dark:text-gray-300">{item.description}</div>
-                                <div className="col-span-2 text-gray-500 dark:text-gray-400 text-sm">{item.date}</div>
-                                <div className={`col-span-1 text-right font-bold ${item.footprint < 0 ? 'text-green-500' : 'text-gray-800 dark:text-white'}`}>
-                                    {item.footprint > 0 ? '+' : ''}{item.footprint}
-                                </div>
-                                <div className="col-span-1 text-center">
-                                    <button className="text-red-500 hover:text-red-700 transition-colors">
-                                        <i className="fas fa-trash-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </div>
             </div>
         </div>

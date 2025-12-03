@@ -15,31 +15,73 @@ const StatCard = ({ icon, value, unit, label, subLabel, isImprovement, isRank })
 );
 
 const ImpactStats = () => {
+    const [stats, setStats] = React.useState({
+        thisMonth: 0,
+        lastMonth: 0,
+        improvement: 0
+    });
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                let url = 'http://127.0.0.1:8000/api/dashboard-stats/';
+                if (user.email) {
+                    url += `?email=${user.email}`;
+                }
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    const thisMonth = data.emission_stats.this_month;
+                    const lastMonth = data.emission_stats.last_month;
+
+                    let improvement = 0;
+                    if (lastMonth > 0) {
+                        improvement = ((lastMonth - thisMonth) / lastMonth) * 100;
+                    } else if (thisMonth > 0) {
+                        improvement = -100; // If last month was 0 and this month > 0, it's a decrease in performance (negative improvement)
+                    }
+
+                    setStats({
+                        thisMonth,
+                        lastMonth,
+                        improvement
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching impact stats:', error);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
     return (
         <div>
             <h2 className="text-3xl font-bold text-teal-800 dark:text-teal-400 mb-8 text-center transition-colors duration-300">Your Impact</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
-                    icon="🍃"
-                    value="0"
-                    unit="tons CO2"
+                    icon={<i className="fas fa-leaf"></i>}
+                    value={stats.thisMonth}
+                    unit="kg CO2e"
                     label="Your Footprint"
                     subLabel="(This Month)"
                 />
                 <StatCard
-                    icon="📉"
-                    value="348.99"
-                    unit="tons CO2"
+                    icon={<i className="fas fa-chart-line"></i>}
+                    value={stats.lastMonth}
+                    unit="kg CO2e"
                     label="vs. Last Month"
                 />
                 <StatCard
-                    icon="↘️"
-                    value="↓ 348.99%"
+                    icon={<i className={`fas fa-arrow-${stats.improvement >= 0 ? 'down' : 'up'}`}></i>}
+                    value={`${stats.improvement >= 0 ? '↓' : '↑'} ${Math.abs(stats.improvement).toFixed(1)}%`}
                     label="Monthly Improvement"
-                    isImprovement={true}
+                    isImprovement={stats.improvement >= 0}
+                    subLabel={stats.improvement >= 0 ? "Reduction" : "Increase"}
                 />
                 <StatCard
-                    icon="🏆"
+                    icon={<i className="fas fa-trophy"></i>}
                     value="#2"
                     label="Community Rank"
                     isRank={true}
