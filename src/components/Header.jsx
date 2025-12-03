@@ -60,7 +60,12 @@ const Header = ({ user, onLoginClick, onRegisterClick, onLogout, onNavigate, cur
                     >
                         Profile
                     </button>
-                    <a href="#" className="hover:text-teal-100 transition-colors font-medium">Community</a>
+                    <button
+                        onClick={() => onNavigate('community')}
+                        className={`${currentPage === 'community' ? 'font-bold border-b-2 border-white pb-1' : 'hover:text-teal-100 transition-colors font-medium'}`}
+                    >
+                        Community
+                    </button>
                     <a href="#" className="hover:text-teal-100 transition-colors font-medium">Challenges</a>
                 </nav>
 
@@ -221,7 +226,7 @@ const Header = ({ user, onLoginClick, onRegisterClick, onLogout, onNavigate, cur
                 <div className="md:hidden bg-teal-600 dark:bg-teal-800 pb-4 px-4 pt-2 space-y-2 shadow-inner transition-colors">
                     <button onClick={() => onNavigate('home')} className="block w-full text-left py-2 bg-teal-700 dark:bg-teal-900 rounded px-2 font-bold transition-colors">Home</button>
                     <button onClick={() => onNavigate('profile')} className="block w-full text-left py-2 hover:bg-teal-700 dark:hover:bg-teal-900 rounded px-2 transition-colors">Profile</button>
-                    <a href="#" className="block py-2 hover:bg-teal-700 dark:hover:bg-teal-900 rounded px-2 transition-colors">Community</a>
+                    <button onClick={() => onNavigate('community')} className="block w-full text-left py-2 hover:bg-teal-700 dark:hover:bg-teal-900 rounded px-2 transition-colors">Community</button>
                     <a href="#" className="block py-2 hover:bg-teal-700 dark:hover:bg-teal-900 rounded px-2 transition-colors">Challenges</a>
 
                     <div className="border-t border-teal-500 dark:border-teal-700 pt-2 mt-2 flex flex-col space-y-2 transition-colors">

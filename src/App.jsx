@@ -17,6 +17,7 @@ import RecentActivities from './components/RecentActivities';
 import DailyEngagement from './components/DailyEngagement';
 import LogActivity from './components/LogActivity';
 import ProfilePage from './components/ProfilePage';
+import Community from './components/Community';
 import './App.css'
 
 export const API_URL = 'http://127.0.0.1:8000/api';
@@ -209,7 +210,7 @@ function App() {
         onLoginSuccess={handleLoginSuccess}
       />
 
-      <main className="flex-grow pt-6">
+      <main className={`flex-grow ${currentPage === 'community' ? '' : 'pt-6'}`}>
         {currentPage === 'home' ? (
           <>
             <div id="welcome"><QuotesSection onNavigate={handleNavigate} /></div>
@@ -237,6 +238,8 @@ function App() {
           </>
         ) : currentPage === 'log-activity' ? (
           <LogActivity />
+        ) : currentPage === 'community' ? (
+          <Community />
         ) : (
           <ProfilePage user={user} onUpdateProfile={handleUpdateProfile} isDarkMode={isDarkMode} onNavigate={handleNavigate} />
         )}
