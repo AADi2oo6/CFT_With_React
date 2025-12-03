@@ -25,10 +25,15 @@ SECRET_KEY = 'django-insecure-uz)v!et^fbnsp*$x_1-ktg-g&x%#(cxe_pz4&cjm8s=(b+7n%4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "https://cft-with-react-backend.onrender.com",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://cft-with-react-backend.onrender.com",
 ]
 
 
@@ -116,7 +121,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
