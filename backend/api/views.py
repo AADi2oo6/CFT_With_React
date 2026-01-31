@@ -813,3 +813,61 @@ class VerifyOTPView(APIView):
             return Response({'error': 'Verification record not found. Please request OTP again.'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+# --- AI CHATBOT VIEW ---
+import google.generativeai as genai
+
+class ChatBotView(APIView):
+    permission_classes = [AllowAny] 
+
+    def post(self, request):
+        user_message = request.data.get('message')
+        if not user_message:
+            return Response({'error': 'Message is required'}, status=400)
+
+        # Configure API Key
+        api_key = os.environ.get('GEMINI_API_KEY')
+        if not api_key:
+             return Response({'error': 'Server configuration error: API Key missing'}, status=500)
+        
+        genai.configure(api_key=api_key)
+
+        # System Prompt for Context
+        system_prompt = """
+        You are EcoBot, a helpful AI assistant for the Carbon Footprint Tracker (CFT) app.
+        
+        Your goals:
+        1. Help users navigate the app.
+        2. Answer questions about carbon footprint, sustainability, and the app's features.
+        3. Be friendly, concise, and motivating.
+
+        APP STRUCTURE / NAVIGATION:
+        - **Dashboard** (/): Overview of emissions, stats, and quick links.
+        - **Log Activity** (/log-activity): Where users record emissions (Transport, Energy, Food, etc.).
+        - **Community** (/community): Join groups, view challenges, and see the impact map.
+        - **Challenges** (/challenges): View and join sustainability challenges.
+        - **Profile** (/profile): User settings, history, and achievements.
+        - **Global Impact** (on Dashboard): Global stats like trees planted.
+
+        INSTRUCTIONS:
+        - If a user asks "How do I add...?", guide them to the Log Activity page.
+        - If they ask about their score, guide them to Profile or Dashboard.
+        - If the user wants to go somewhere, you can optionally include a specific string like [NAVIGATE: page_name] at the end of your message, but primarily give a helpful text response first.
+        - Keep responses short (max 2-3 sentences unless explaining a complex topic).
+        """
+
+        try:
+            # Initialize Model - USING USER REQUESTED MODEL
+            model = genai.GenerativeModel('gemini-3-flash-preview') 
+            
+            full_prompt = f"{system_prompt}\n\nUser: {user_message}\nEcoBot:"
+            
+            response = model.generate_content(full_prompt)
+            
+            bot_reply = response.text
+            
+            return Response({'reply': bot_reply})
+            
+        except Exception as e:
+            print(f"Gemini Error: {e}")
+            return Response({'error': 'I am having trouble thinking right now. Please try again.'}, status=500)

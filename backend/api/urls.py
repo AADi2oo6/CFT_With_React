@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView
+from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView, ChatBotView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -19,5 +19,6 @@ urlpatterns = [
     path('communities/<int:pk>/leave/', CommunityActionView.as_view(), {'action': 'leave'}, name='community-leave'),
     path('auth/send-otp/', SendOTPView.as_view(), name='send-otp'),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('chat/', ChatBotView.as_view(), name='chat-bot'),
 ]
 
