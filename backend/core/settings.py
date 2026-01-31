@@ -30,12 +30,12 @@ ALLOWED_HOSTS = ['*']
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
-    # "https://cft-with-react-backend.onrender.com",
+    "https://cft-with-react.onrender.com",
     "https://cfthosting.vercel.app",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    # "https://cft-with-react-backend.onrender.com",
+    "https://cft-with-react.onrender.com",
     "https://cfthosting.vercel.app",
 ]
 
