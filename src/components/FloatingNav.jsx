@@ -13,7 +13,16 @@ const navItems = [
     { id: 'emission-breakdown', label: 'Breakdown', icon: <path d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /> },
 ];
 
-const FloatingNav = ({ user }) => {
+const FloatingNav = ({ user, onNavigate }) => {
+    // ...
+    const scrollToLogActivity = () => {
+        if (onNavigate) {
+            onNavigate('log-activity');
+        } else {
+            // Fallback if handleNavigate not passed, though it should be.
+            console.warn("Navigation handler not passed to FloatingNav");
+        }
+    };
     const [isOpen, setIsOpen] = useState(true);
     const [activeSection, setActiveSection] = useState('');
     const [isMobileMode, setIsMobileMode] = useState(false);
@@ -172,6 +181,29 @@ const FloatingNav = ({ user }) => {
                             )}
                         </button>
                     ))}
+                    {/* Log Activity Button - Hide for Org Admin */}
+                    {!user?.is_org_admin && (
+                        <div className="p-3 flex justify-center"> {/* Added a div to contain the button and center it */}
+                            <button
+                                onClick={scrollToLogActivity}
+                                className={`
+                                    relative group flex items-center justify-center
+                                    w-14 h-14 rounded-full shadow-lg hover:shadow-xl
+                                    bg-gradient-to-tr from-teal-500 to-emerald-500
+                                    text-white transition-all duration-300 transform hover:-translate-y-1
+                                    border border-teal-400/50
+                                `}
+                                aria-label="Log Activity"
+                            >
+                                <i className="fas fa-plus text-xl transition-transform duration-300 group-hover:rotate-90"></i>
+
+                                {/* Tooltip */}
+                                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
+                                    Log Activity
+                                </span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Mobile Close Option */}

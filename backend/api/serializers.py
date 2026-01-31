@@ -5,7 +5,7 @@ from .models import Profile, Achievement, UserAchievement, Community, Challenge,
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = '__all__'
+        exclude = ('org_pin', 'email') # Hide sensitive info from public API
 
 class ProfileSerializer(serializers.ModelSerializer):
     org_id = serializers.CharField(source='organization.org_id', read_only=True)

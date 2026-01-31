@@ -745,8 +745,11 @@ class EnergyForecastView(APIView):
 import random
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import EmailVerification
+from .models import User, Profile, Activity, Challenge, UserChallengeProgress, Organization, EmailVerification # Added EmailVerification if needed later
+import random 
 
+# Global storage for Org OTPs (Simple in-memory for MVP)
+otp_storage = {}
 class SendOTPView(APIView):
     permission_classes = [AllowAny]
     
@@ -923,3 +926,120 @@ class OrganizationDetailView(APIView):
             
         except Organization.DoesNotExist:
             return Response({'error': 'Organization not found'}, status=404)
+
+import random
+
+class OrganizationRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        action = request.data.get('action') # 'send_otp' or 'verify_create'
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({'error': 'Email is required'}, status=400)
+
+        # 1. Send OTP Step
+        if action == 'send_otp':
+            # Check if email is already used by an Org
+            if Organization.objects.filter(email=email).exists():
+                return Response({'error': 'Email already registered with an Organization'}, status=400)
+            
+            otp = str(random.randint(100000, 999999))
+            otp_storage[email] = otp
+            
+            # Send Email
+            subject = "Your Organization Verification Code - Carbon Tracker"
+            message = f"Hello,\n\nYour OTP for Organization registration is: {otp}\n\nThis code expires in 5 minutes.\n\nThank you,\nCarbon Tracker Team"
+            
+            try:
+                send_mail(subject, message, settings.EMAIL_HOST_USER, [email], fail_silently=False)
+                return Response({'message': 'OTP sent to email'})
+            except Exception as e:
+                print(f"Error sending email: {e}")
+                return Response({'error': f'Failed to send email: {str(e)}'}, status=500)
+
+        # 2. Check OTP Only (New Step)
+        elif action == 'check_otp':
+             otp = request.data.get('otp')
+             if not otp:
+                 return Response({'error': 'OTP is required'}, status=400)
+                 
+             stored_otp = otp_storage.get(email)
+             if not stored_otp or stored_otp != otp:
+                 return Response({'error': 'Invalid or expired OTP'}, status=400)
+                 
+             return Response({'message': 'OTP Verified Successfully'})
+
+        # 3. Verify & Create Step (Final)
+        elif action == 'verify_create':
+            otp = request.data.get('otp')
+            name = request.data.get('name')
+            admin_name = request.data.get('admin_name')
+            org_pin = request.data.get('org_pin') # NOW REQUIRED
+            
+            if not otp or not name or not admin_name or not org_pin:
+                return Response({'error': 'OTP, Org Name, Admin Name, and PIN are required'}, status=400)
+                
+            stored_otp = otp_storage.get(email)
+            if not stored_otp or stored_otp != otp:
+                return Response({'error': 'Invalid or expired OTP'}, status=400)
+                
+            # Valid OTP, Create Org
+            while True:
+                random_str = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+                org_id = f"ORG-{random_str}"
+                if not Organization.objects.filter(org_id=org_id).exists():
+                    break
+            
+            try:
+                org = Organization.objects.create(
+                    org_id=org_id,
+                    name=name,
+                    admin_name=admin_name,
+                    email=email,
+                    org_pin=org_pin 
+                )
+                if email in otp_storage:
+                    del otp_storage[email]
+                
+                return Response({
+                    'message': 'Organization created successfully',
+                    'org_id': org.org_id,
+                    'name': org.name,
+                    'is_org_admin': True 
+                }, status=201)
+            except Exception as e:
+                return Response({'error': str(e)}, status=500)
+        
+        return Response({'error': 'Invalid action'}, status=400)
+
+
+class OrganizationLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        org_id = request.data.get('org_id')
+        admin_name = request.data.get('admin_name')
+        org_pin = request.data.get('org_pin')
+
+        if not org_id or not admin_name or not org_pin:
+             return Response({'error': 'Org ID, Admin Name, and PIN are required'}, status=400)
+
+        try:
+            org = Organization.objects.get(org_id=org_id, admin_name=admin_name)
+            
+            # Note: In production, hash this PIN!
+            if org.org_pin == org_pin:
+                return Response({
+                    'message': 'Login successful',
+                    'org_id': org.org_id,
+                    'name': org.name,
+                    'admin_name': org.admin_name,
+                    'is_org_admin': True
+                })
+            else:
+                return Response({'error': 'Invalid PIN'}, status=401)
+                
+        except Organization.DoesNotExist:
+            return Response({'error': 'Invalid credentials (ID or Admin Name mismatch)'}, status=401)

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const EcoChampions = () => {
+const EcoChampions = ({ isOrg = false }) => {
     const [champions, setChampions] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [showAll, setShowAll] = React.useState(false);
@@ -8,10 +8,19 @@ const EcoChampions = () => {
     React.useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
+                // If isOrg, we would typically pass ?org_id=... or call a different endpoint
+                // For now, using the same endpoint but we'll simulate "Org Only" by slicing or renaming in UI
                 const res = await fetch(`${import.meta.env.VITE_API_URL}/leaderboard/`);
                 if (res.ok) {
                     const data = await res.json();
-                    setChampions(data.leaderboard); // Fetch all (top 50)
+                    let list = data.leaderboard;
+
+                    if (isOrg) {
+                        // DUMMY LOGIC: Simulate Org-specific list by taking a subset or modifying names
+                        // In real implementation, backend filters this.
+                        list = list.slice(0, 3).map(u => ({ ...u, username: `${u.username} (Org Mate)` }));
+                    }
+                    setChampions(list);
                 }
             } catch (error) {
                 console.error("Failed to fetch leaderboard", error);
@@ -21,7 +30,7 @@ const EcoChampions = () => {
         };
 
         fetchLeaderboard();
-    }, []);
+    }, [isOrg]);
 
     const getRankIcon = (rank) => {
         switch (rank) {
@@ -43,7 +52,9 @@ const EcoChampions = () => {
             <div className="max-w-6xl mx-auto">
                 <div className="flex items-center justify-center gap-3 mb-8">
                     <img src="https://cdn-icons-png.flaticon.com/512/3112/3112946.png" alt="Trophy" className="w-8 h-8" />
-                    <h2 className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">Top Eco Champions</h2>
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">
+                        {isOrg ? "Organization Champions" : "Top Eco Champions"}
+                    </h2>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">
@@ -62,9 +73,9 @@ const EcoChampions = () => {
                         ) : champions.length === 0 ? (
                             <div className="p-8 text-center text-gray-500 dark:text-gray-400">No champions yet!</div>
                         ) : (
-                            visibleChampions.map((champ) => (
-                                <div key={champ.rank} className="grid grid-cols-4 p-4 items-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                    <div className="pl-2">{getRankIcon(champ.rank)}</div>
+                            visibleChampions.map((champ, index) => (
+                                <div key={index} className="grid grid-cols-4 p-4 items-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    <div className="pl-2">{getRankIcon(index + 1)}</div>
                                     <div className="text-gray-800 dark:text-gray-200 font-medium truncate pr-4 transition-colors">
                                         {champ.username}
                                     </div>
@@ -80,17 +91,20 @@ const EcoChampions = () => {
                     </div>
                 </div>
 
-                <div className="mt-6">
-                    <button
-                        onClick={() => setShowAll(!showAll)}
-                        className="text-teal-600 dark:text-teal-400 font-semibold border border-teal-600 dark:border-teal-400 rounded-lg px-6 py-2 hover:bg-teal-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        {showAll ? 'Show Less' : 'View Full Leaderboard'}
-                    </button>
-                </div>
+                {champions.length > 5 && (
+                    <div className="mt-6">
+                        <button
+                            onClick={() => setShowAll(!showAll)}
+                            className="text-teal-600 dark:text-teal-400 font-semibold border border-teal-600 dark:border-teal-400 rounded-lg px-6 py-2 hover:bg-teal-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            {showAll ? 'Show Less' : 'View Full Leaderboard'}
+                        </button>
+                    </div>
+                )}
             </div>
         </section>
     );
 };
+
 
 export default EcoChampions;

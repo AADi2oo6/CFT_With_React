@@ -15,17 +15,16 @@ import FloatingNav from './components/FloatingNav';
 import ImpactStats from './components/ImpactStats';
 import RecentActivities from './components/RecentActivities';
 import DailyEngagement from './components/DailyEngagement';
-import LogActivity from './components/LogActivity';
+import LogActivity from './components/LogActivity'; // Was missing in previous messed up update
 import ProfilePage from './components/ProfilePage';
 import Community from './components/Community';
 import Challenges from './components/Challenges';
 import BackgroundAnimation from './components/BackgroundAnimation';
 import EcoBot from './components/EcoBot';
-import './App.css'
+import OrgImpactStats from './components/OrgImpactStats';
+import './App.css';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// export const API_URL = import.meta.env.VITE_API_URL;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -110,41 +109,31 @@ function App() {
   }, [currentPage, user]);
 
   useEffect(() => {
-    // Sync state with browser history on popstate (back/forward button)
     const handlePopState = (event) => {
       if (event.state && event.state.page) {
         setCurrentPage(event.state.page);
         localStorage.setItem('currentPage', event.state.page);
       } else {
-        // Default to home if no state (e.g., initial load or external link)
         setCurrentPage('home');
         localStorage.setItem('currentPage', 'home');
       }
     };
-
     window.addEventListener('popstate', handlePopState);
-
-    // Initial replaceState to ensure current page is in history
     window.history.replaceState({ page: currentPage }, '', window.location.pathname);
-
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
   const handleNavigate = (page) => {
-    // Protected routes check
     if (page === 'profile' && !user) {
       setAuthMode('login');
       setIsAuthModalOpen(true);
       return;
     }
-
     setCurrentPage(page);
     localStorage.setItem('currentPage', page);
     window.scrollTo(0, 0);
-
-    // Push new state to history
     window.history.pushState({ page: page }, '', window.location.pathname);
   };
 
@@ -154,7 +143,6 @@ function App() {
         console.error("No user email found for update");
         return;
       }
-
       const response = await fetch(`${import.meta.env.VITE_API_URL}/update-profile-by-email/`, {
         method: 'PUT',
         headers: {
@@ -168,12 +156,10 @@ function App() {
 
       if (response.ok) {
         const data = await response.json();
-        // Update local user state with the data returned from backend
         setUser(data.user);
         localStorage.setItem('user', JSON.stringify(data.user));
       } else {
         console.error("Backend update failed");
-        // Fallback for demo: still update local state so user sees changes
         setUser(prevUser => {
           const newUser = {
             ...prevUser,
@@ -188,7 +174,6 @@ function App() {
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      // Fallback for demo
       setUser(prevUser => {
         const newUser = {
           ...prevUser,
@@ -218,7 +203,7 @@ function App() {
           toggleTheme={toggleTheme}
         />
 
-        {currentPage === 'home' && <FloatingNav user={user} />}
+        {currentPage === 'home' && <FloatingNav user={user} onNavigate={handleNavigate} />}
 
         <AuthModal
           isOpen={isAuthModalOpen}
@@ -230,28 +215,55 @@ function App() {
         <main className={`flex-grow ${currentPage === 'community' ? '' : 'pt-6'}`}>
           {currentPage === 'home' ? (
             <>
+              {/* Show Quotes for everyone */}
               <div id="welcome"><QuotesSection onNavigate={handleNavigate} /></div>
 
               {user && (
                 <div className="max-w-6xl mx-auto px-4 mb-12">
                   <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-lg p-8 border border-teal-50 dark:border-gray-700 transition-colors duration-300">
-                    <div id="impact-stats"><ImpactStats /></div>
-                    <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
-                    <div id="recent-activities"><RecentActivities /></div>
-                    <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
-                    <div id="daily-engagement"><DailyEngagement onNavigate={handleNavigate} /></div>
+                    {/* CONDITIONAL DASHBOARD */}
+                    {user.is_org_admin ? (
+                      /* ORGANIZATION VIEW */
+                      <>
+                        <div id="impact-stats"><OrgImpactStats /></div>
+                        {/* HIDING Recent Activities & Daily Engagement for Org Admins */}
+                      </>
+                    ) : (
+                      /* REGULAR USER VIEW */
+                      <>
+                        <div id="impact-stats"><ImpactStats /></div>
+                        <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
+                        <div id="recent-activities"><RecentActivities /></div>
+                        <div className="my-12 border-t border-gray-100 dark:border-gray-700 transition-colors"></div>
+                        <div id="daily-engagement"><DailyEngagement onNavigate={handleNavigate} /></div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
 
               <div id="global-emissions"><EmissionsMap /></div>
-              <div id="comparison"><ImpactSection /></div>
-              <div id="community-stats"><CommunityImpactMap /></div>
-              <div id="eco-champions"><EcoChampions /></div>
-              <div id="live-actions"><LiveActions /></div>
-              <div id="actionable-insights"><ActionableInsights /></div>
-              <div id="emission-breakdown"><EmissionBreakdown /></div>
-              <div id="country-comparison"><CountryComparison /></div>
+
+              {/* Show Comparison only for Regular Users */}
+              {!user?.is_org_admin && (
+                <>
+                  <div id="comparison"><ImpactSection /></div>
+                  <div id="community-stats"><CommunityImpactMap /></div>
+                </>
+              )}
+
+              {/* Eco Champions: Pass isOrg prop */}
+              <div id="eco-champions"><EcoChampions isOrg={user?.is_org_admin} /></div>
+
+              {/* Hide Live Actions, Insights, Breakdown, Comparison for Org Admin */}
+              {!user?.is_org_admin && (
+                <>
+                  <div id="live-actions"><LiveActions /></div>
+                  <div id="actionable-insights"><ActionableInsights /></div>
+                  <div id="emission-breakdown"><EmissionBreakdown /></div>
+                  <div id="country-comparison"><CountryComparison /></div>
+                </>
+              )}
             </>
           ) : currentPage === 'log-activity' ? (
             <LogActivity />
@@ -266,9 +278,9 @@ function App() {
 
         <Footer />
         <EcoBot onNavigate={handleNavigate} />
-      </div >
+      </div>
     </QueryClientProvider>
   );
 }
 
-export default App
+export default App;

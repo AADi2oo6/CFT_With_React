@@ -9,6 +9,8 @@ class Organization(models.Model):
     org_id = models.CharField(max_length=50, unique=True, db_index=True, help_text="Unique Secret Key for the Organization")
     name = models.CharField(max_length=100)
     admin_name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True, null=True, blank=True) # Making null=True initially to avoid defaults issue on existing rows, or provide default
+    org_pin = models.CharField(max_length=6, default="202510", help_text="6-digit PIN for Org Login")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

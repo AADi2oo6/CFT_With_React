@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView, ChatBotView, OrganizationCreateView, OrganizationDetailView
+from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView, ChatBotView, OrganizationCreateView, OrganizationDetailView, OrganizationRegisterView, OrganizationLoginView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -22,7 +22,9 @@ urlpatterns = [
     path('chat/', ChatBotView.as_view(), name='chat-bot'),
     
     # Organization
-    path('organization/create/', OrganizationCreateView.as_view(), name='create-org'),
+    path('organization/create/', OrganizationCreateView.as_view(), name='create-org'), # Keeping this for generic creation, or replace with register
+    path('organization/register/', OrganizationRegisterView.as_view(), name='org-register'),
+    path('organization/login/', OrganizationLoginView.as_view(), name='org-login'),
     path('organization/<str:org_id>/', OrganizationDetailView.as_view(), name='org-detail'),
 ]
 
