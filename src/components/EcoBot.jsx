@@ -92,7 +92,7 @@ const EcoBot = ({ onNavigate }) => {
             >
                 {/* Tooltip */}
                 <div
-                    className={`absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity duration-200 pointer-events-none ${isHovered ? 'opacity-100' : ''}`}
+                    className={`absolute -top-14 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity duration-200 pointer-events-none ${isHovered ? 'opacity-100' : ''}`}
                 >
                     Need Help?
                     {/* Tooltip Arrow */}
@@ -100,7 +100,7 @@ const EcoBot = ({ onNavigate }) => {
                 </div>
 
                 {/* Lottie Animation */}
-                <div className="w-20 transition-transform duration-300 hover:scale-110 drop-shadow-lg">
+                <div className="w-32 transition-transform duration-300 hover:scale-110 drop-shadow-lg">
                     <Lottie animationData={robotAnimation} loop={true} />
                 </div>
             </div>

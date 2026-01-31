@@ -50,6 +50,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onLoginSuccess }) =
                 setError(data.error || "Failed to send OTP.");
             }
         } catch (e) {
+            console.error("OTP Error:", e);
             setError("Failed to connect for OTP.");
         }
     };
