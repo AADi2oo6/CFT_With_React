@@ -14,10 +14,13 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         last_name: '',
         phone_no: '',
         city: '',
-        state: ''
+        state: '',
+        target_org_id: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    const [orgVerification, setOrgVerification] = useState({ status: 'idle', message: '' }); // status: idle, verifying, success, error
 
     useEffect(() => {
         if (user && user.profile) {
@@ -26,13 +29,35 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                 last_name: user.profile.last_name || '',
                 phone_no: user.profile.phone_no || '',
                 city: user.profile.city || '',
-                state: user.profile.state || ''
+                state: user.profile.state || '',
+                target_org_id: ''
             });
+            // Don't auto-verify existing org, as we are joining a NEW one
         }
     }, [user]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (e.target.name === 'target_org_id') {
+            setOrgVerification({ status: 'idle', message: '' });
+        }
+    };
+
+    const handleVerifyOrg = async () => {
+        if (!formData.target_org_id) return;
+        setOrgVerification({ status: 'verifying', message: '' });
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/organization/${formData.target_org_id}/`);
+            if (response.ok) {
+                const data = await response.json();
+                setOrgVerification({ status: 'success', message: `Verified: ${data.name}` });
+            } else {
+                setOrgVerification({ status: 'error', message: 'Organization not found' });
+            }
+        } catch (error) {
+            setOrgVerification({ status: 'error', message: 'Connection error' });
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -157,6 +182,48 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                                 <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
                             </div>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Join Organization <span className="text-xs text-gray-500 font-normal">(Optional)</span>
+                            </label>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <i className="fas fa-building absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm"></i>
+                                    <input
+                                        type="text"
+                                        name="target_org_id"
+                                        value={formData.target_org_id || ''}
+                                        onChange={handleChange}
+                                        className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 
+                                            ${orgVerification.status === 'error' ? 'border-red-500 focus:ring-red-200 focus:border-red-500' :
+                                                orgVerification.status === 'success' ? 'border-green-500 focus:ring-green-200 focus:border-green-500' :
+                                                    'border-gray-300 dark:border-gray-600 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500 dark:focus:border-teal-400'}`}
+                                        placeholder="Enter Org ID (e.g. ORG-X9A2B)"
+                                    />
+                                </div>
+                                {formData.target_org_id && (
+                                    <button
+                                        type="button"
+                                        onClick={handleVerifyOrg}
+                                        disabled={orgVerification.status === 'verifying' || orgVerification.status === 'success'}
+                                        className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap
+                                            ${orgVerification.status === 'success'
+                                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                                : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'}`}
+                                    >
+                                        {orgVerification.status === 'verifying' ? 'Checking...' :
+                                            orgVerification.status === 'success' ? 'Verified' : 'Verify'}
+                                    </button>
+                                )}
+                            </div>
+                            {orgVerification.message && (
+                                <p className={`text-xs mt-1 ${orgVerification.status === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+                                    {orgVerification.status === 'success' ? <i className="fas fa-check-circle mr-1"></i> : <i className="fas fa-exclamation-circle mr-1"></i>}
+                                    {orgVerification.message}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 mt-2 transition-colors">
@@ -169,8 +236,8 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
-                            className="px-6 py-2 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white font-medium rounded-lg transition-colors shadow-md disabled:opacity-70 flex items-center gap-2"
+                            disabled={loading || (formData.target_org_id && orgVerification.status !== 'success')}
+                            className="px-6 py-2 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white font-medium rounded-lg transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {loading ? (
                                 <>

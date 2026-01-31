@@ -5,9 +5,21 @@ from django.dispatch import receiver
 from django.utils import timezone
 import uuid
 
+class Organization(models.Model):
+    org_id = models.CharField(max_length=50, unique=True, db_index=True, help_text="Unique Secret Key for the Organization")
+    name = models.CharField(max_length=100)
+    admin_name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.org_id})"
+
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     
+    # --- Link to Organization ---
+    organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
+
     # --- Existing Fields (Unchanged) ---
     profile_name = models.CharField(max_length=100, unique=True, blank=True)
     first_name = models.CharField(max_length=100, null=True, blank=True)

@@ -1,16 +1,38 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Profile, Achievement, UserAchievement, Community, Challenge, UserChallengeProgress, Activity
+from .models import Profile, Achievement, UserAchievement, Community, Challenge, UserChallengeProgress, Activity, Organization
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'
 
 class ProfileSerializer(serializers.ModelSerializer):
+    org_id = serializers.CharField(source='organization.org_id', read_only=True)
+    org_name = serializers.CharField(source='organization.name', read_only=True)
+    target_org_id = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Provide Org ID to join")
+
     class Meta:
         model = Profile
         fields = (
             'profile_name', 'first_name', 'last_name', 'phone_no', 'city', 'state',
             'carbon_budget_kg', 'total_emission_kg', 'avg_daily_emission_kg',
             'level', 'xp', 'current_streak', 'last_activity_date',
-            'eco_coins', 'is_iot_connected', 'sustainability_score'
+            'eco_coins', 'is_iot_connected', 'sustainability_score',
+            'org_id', 'org_name', 'target_org_id'
         )
+
+    def update(self, instance, validated_data):
+        target_org_id = validated_data.pop('target_org_id', None)
+        if target_org_id:
+            try:
+                org = Organization.objects.get(org_id=target_org_id)
+                instance.organization = org
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError({"target_org_id": "Organization with this ID not found."})
+        
+        return super().update(instance, validated_data)
+
 
 class AchievementSerializer(serializers.ModelSerializer):
     class Meta:
@@ -199,6 +221,15 @@ class UserSerializer(serializers.ModelSerializer):
         # Update new fields if provided
         profile.carbon_budget_kg = profile_data.get('carbon_budget_kg', profile.carbon_budget_kg)
         profile.is_iot_connected = profile_data.get('is_iot_connected', profile.is_iot_connected)
+        
+        # Org Linking Logic
+        target_org_id = profile_data.get('target_org_id')
+        if target_org_id:
+            try:
+                org = Organization.objects.get(org_id=target_org_id)
+                profile.organization = org
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError({"profile": {"target_org_id": "Organization with this ID not found."}})
         
         profile.save()
 

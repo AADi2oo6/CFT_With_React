@@ -870,4 +870,56 @@ class ChatBotView(APIView):
             
         except Exception as e:
             print(f"Gemini Error: {e}")
-            return Response({'error': 'I am having trouble thinking right now. Please try again.'}, status=500)
+# --- ORGANIZATION VIEWS ---
+import secrets
+import string
+from .models import Organization
+from .serializers import OrganizationSerializer
+
+class OrganizationCreateView(APIView):
+    permission_classes = [AllowAny] # Or IsAuthenticated if you want only logged-in users to create
+
+    def post(self, request):
+        name = request.data.get('name')
+        admin_name = request.data.get('admin_name')
+
+        if not name or not admin_name:
+            return Response({'error': 'Name and Admin Name are required'}, status=400)
+
+        # Generate Unique Org ID (e.g., ORG-X9A2B)
+        while True:
+            random_str = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+            org_id = f"ORG-{random_str}"
+            if not Organization.objects.filter(org_id=org_id).exists():
+                break
+        
+        try:
+            org = Organization.objects.create(
+                org_id=org_id,
+                name=name,
+                admin_name=admin_name
+            )
+            serializer = OrganizationSerializer(org)
+            return Response(serializer.data, status=201)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+class OrganizationDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, org_id):
+        try:
+            org = Organization.objects.get(org_id=org_id)
+            serializer = OrganizationSerializer(org)
+            
+            # Count registered users (members)
+            # Since Profile has related_name='members', we can use count() directly
+            member_count = org.members.count()
+            
+            response_data = serializer.data
+            response_data['total_members'] = member_count
+            
+            return Response(response_data)
+            
+        except Organization.DoesNotExist:
+            return Response({'error': 'Organization not found'}, status=404)
