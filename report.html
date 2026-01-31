@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoTrack Research Paper Report</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #fff;
+            color: #000;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #333;
+        }
+
+        h1 {
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95em;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #000;
+        }
+
+        th,
+        td {
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .equation {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .mermaid {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        ul {
+            list-style-type: square;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>EcoTrack: IoT-Based Carbon Footprint Monitoring and Forecasting System</h1>
+
+    <h2>1. Mathematical Methodology</h2>
+
+    <h3>A. Carbon Emission Calculation Model</h3>
+    <p>To quantify the environmental impact, we calculate the Carbon Dioxide Equivalent (\(CO_2e\)) based on real-time
+        power consumption. The emission \(CO_2e(t)\) at time \(t\) is defined as:</p>
+
+    <div class="equation">
+        $$ CO_2e(t) = P(t) \cdot \Delta t \cdot EF_{grid} $$
+    </div>
+
+    <p>Where:</p>
+    <ul>
+        <li>\(P(t)\) is the active power in kW measured by the ZMPT101B and SCT-013 sensors.</li>
+        <li>\(\Delta t\) is the time interval (in hours).</li>
+        <li>\(EF_{grid}\) is the Grid Emission Factor (currently \(\approx 0.82 \, kgCO_2/kWh\) for the Indian grid).
+        </li>
+    </ul>
+
+    <h3>B. Non-Intrusive Load Monitoring (NILM)</h3>
+    <p>To identify specific connected components (e.g., Fridge vs. Fan) without individual sensors for each, we model
+        the aggregate power \(P_{total}(t)\) as the summation of individual appliance states:</p>
+
+    <div class="equation">
+        $$ P_{total}(t) = \sum_{i=1}^{N} [s_i(t) \cdot P_i] + e(t) $$
+    </div>
+
+    <p>Where:</p>
+    <ul>
+        <li>\(N\) is the total number of appliances.</li>
+        <li>\(s_i(t)\) represents the state (ON/OFF) of appliance \(i\) at time \(t\) (binary \(\in \{0,1\}\)).</li>
+        <li>\(P_i\) is the power signature (nominal power) of appliance \(i\).</li>
+        <li>\(e(t)\) represents measurement noise or unknown loads.</li>
+    </ul>
+
+    <h3>C. LSTM Forecasting Model</h3>
+    <p>For predicting future energy consumption, we utilize a Long Short-Term Memory (LSTM) network. The cell state
+        \(C_t\) and hidden state \(h_t\) are updated as follows:</p>
+
+    <div class="equation">
+        $$ f_t = \sigma(W_f \cdot [h_{t-1}, x_t] + b_f) $$
+        $$ i_t = \sigma(W_i \cdot [h_{t-1}, x_t] + b_i) $$
+        $$ C_t = f_t \odot C_{t-1} + i_t \odot \tanh(W_C \cdot [h_{t-1}, x_t] + b_C) $$
+        $$ h_t = \sigma(W_o \cdot [h_{t-1}, x_t] + b_o) \odot \tanh(C_t) $$
+    </div>
+
+    <hr>
+
+    <h2>2. Comparative Analysis (Evaluation)</h2>
+    <p>The table below highlights why EcoTrack is a novel approach compared to traditional methods found in the Indian
+        market.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>EcoTrack (Proposed)</th>
+                <th>Traditional Smart Meter</th>
+                <th>Manual Calculators (Web)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Data Acquisition</strong></td>
+                <td><strong>Hybrid</strong> (IoT + AI Chatbot)</td>
+                <td>IoT Only</td>
+                <td>Manual Entry</td>
+            </tr>
+            <tr>
+                <td><strong>Granularity</strong></td>
+                <td><strong>Appliance-Level</strong> (via NILM)</td>
+                <td>Whole-House Aggregate</td>
+                <td>Monthly Estimation</td>
+            </tr>
+            <tr>
+                <td><strong>Forecasting</strong></td>
+                <td><strong>LSTM-based</strong> (Next 24h)</td>
+                <td>None (Historical only)</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><strong>User Interaction</strong></td>
+                <td><strong>Multimodal</strong> (Voice/Image/Text)</td>
+                <td>Static LCD/App</td>
+                <td>Web Forms</td>
+            </tr>
+            <tr>
+                <td><strong>Gamification</strong></td>
+                <td><strong>Hardware-Verified XP</strong></td>
+                <td>None</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><strong>Cost</strong></td>
+                <td><strong>Low</strong> (< ₹1,500)</td>
+                <td>High (> ₹5,000)</td>
+                <td>Free</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2>3. System Architecture Diagram (Figure 2)</h2>
+    <p>The block diagram typically illustrates the data flow across the four primary layers of the system.</p>
+
+    <div class="mermaid">
+        graph TD
+        %% Theme and Style
+        style L1 fill:#ffffff,stroke:#333,stroke-width:1px
+        style L2 fill:#ffffff,stroke:#333,stroke-width:1px
+        style L3 fill:#f5f5f5,stroke:#333,stroke-width:1px
+        style L4 fill:#ffffff,stroke:#333,stroke-width:1px
+
+        %% Layer 1: Sensing & Ingestion
+        subgraph L1 ["1. Sensing & Ingestion Layer"]
+        direction LR
+        NodeA["IoT Smart Meter<br />(ESP32 + ZMPT101B + SCT-013)"]
+        NodeB["User Input<br />(WhatsApp Voice/Image)"]
+        end
+
+        %% Layer 2: Orchestration
+        subgraph L2 ["2. Orchestration Layer"]
+        NodeC(("n8n Automation<br />Middleware Cloud"))
+        end
+
+        %% Layer 3: Intelligent Processing Core
+        subgraph L3 ["3. Intelligent Processing Core (Django)"]
+        direction TB
+
+        subgraph Engines ["AI Logic Engines"]
+        direction LR
+        NodeD["NILM Engine<br />(Load Disaggregation)"]
+        NodeE["LSTM Forecaster<br />(Energy Prediction)"]
+        NodeF["Carbon Calculator<br />(Emission Logic)"]
+        end
+
+        NodeDB[("Supabase DB<br />(PostgreSQL)")]
+        end
+
+        %% Layer 4: Presentation
+        subgraph L4 ["4. Application & Interaction Layer"]
+        direction LR
+        NodeG["React Dashboard<br />(Visualization)"]
+        NodeH["Feedback Loop<br />(WhatsApp Alerts)"]
+        end
+
+        %% Connections
+        NodeA ==>|"Power Data (kW)"| NodeC
+        NodeB -->|"Chat Commands"| NodeC
+
+        NodeC -->|"Raw Stream"| NodeD
+        NodeC -->|"History Payload"| NodeE
+        NodeC -->|"Activity Logs"| NodeF
+
+        %% Database Interactions
+        NodeD <--> NodeDB
+            NodeE <--> NodeDB
+                NodeF <--> NodeDB
+
+                    %% Output to UI
+                    NodeD -.->|"Appliance <br />Status (Fridge ON)"| NodeG
+                    NodeE -.->|"Usage Forecast"| NodeG
+                    NodeF ==>|"Carbon Footprint"| NodeG
+
+                    NodeDB -.->|"Tips & Alerts"| NodeH
+    </div>
+
+</body>
+
+</html>
