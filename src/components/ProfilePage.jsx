@@ -1,6 +1,7 @@
 import React from 'react';
 import ProfileSidebar from './ProfileSidebar';
 import ProfileDashboard from './ProfileDashboard';
+import OrgMembersTable from './OrgMembersTable';
 
 const ProfilePage = ({ user, onUpdateProfile, isDarkMode, onNavigate }) => {
     return (
@@ -16,6 +17,14 @@ const ProfilePage = ({ user, onUpdateProfile, isDarkMode, onNavigate }) => {
                     <ProfileDashboard isDarkMode={isDarkMode} onNavigate={onNavigate} />
                 </div>
             </div>
+
+            {/* Organization Members Table - Full Width */}
+            {user?.is_org_admin && (
+                <div className="mt-8 transform transition-all duration-500 ease-in-out">
+                    <OrgMembersTable user={user} />
+                </div>
+            )}
+
         </div>
     );
 };

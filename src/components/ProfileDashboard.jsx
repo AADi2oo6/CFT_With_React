@@ -1,11 +1,18 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
+import OrgMembersTable from './OrgMembersTable';
 
 const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
     // Mock Data for Charts
     const [footprintData, setFootprintData] = React.useState([]);
     const [categoryData, setCategoryData] = React.useState([]);
     const [monthlyFootprint, setMonthlyFootprint] = React.useState(0);
+    const [user, setUser] = React.useState(null);
+
+    React.useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        setUser(storedUser);
+    }, []);
 
     // Gamification Data
     const [heatmapGrid, setHeatmapGrid] = React.useState([]);
@@ -19,42 +26,84 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const emailParam = user.email ? `?email=${user.email}` : '';
+            const queryParam = user.org_id ? `org_id=${user.org_id}` : `email=${user.email}`;
 
-            // 1. Dashboard Stats
-            const dashboardRes = await fetch(`${import.meta.env.VITE_API_URL}/dashboard-stats/${emailParam}`);
-            if (dashboardRes.ok) {
-                const data = await dashboardRes.json();
-                setFootprintData(data.trend_data);
+            if (user.is_org_admin) {
+                // --- ORG ADMIN FETCH ---
 
-                const colors = {
-                    transport: '#22c55e', food: '#0ea5e9', consumption: '#eab308',
-                    energy: '#ef4444', waste: '#6b7280'
-                };
-                const formattedCategoryData = Object.entries(data.category_breakdown).map(([key, value]) => ({
-                    name: key.charAt(0).toUpperCase() + key.slice(1),
-                    value: value,
-                    color: colors[key] || '#cbd5e1'
-                })).filter(item => item.value > 0);
-                setCategoryData(formattedCategoryData);
-                setMonthlyFootprint(data.emission_stats.this_month);
-            }
+                // 1. Org Footprint Trend
+                const graphRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/emissions-graph/?${queryParam}`);
+                if (graphRes.ok) {
+                    const data = await graphRes.json();
+                    // Transform to match Recharts expected format (key 'value')
+                    // Logic fix: API returns 'graph_data', not 'trend_data'
+                    const formattedTrend = (data.graph_data || []).map(item => ({
+                        month: item.month,
+                        value: item.emission || 0
+                    }));
+                    setFootprintData(formattedTrend);
+                }
 
-            // 2. Gamification Stats (Heatmap)
-            const gamificationRes = await fetch(`${import.meta.env.VITE_API_URL}/gamification-stats/${emailParam}`);
-            if (gamificationRes.ok) {
-                const data = await gamificationRes.json();
-                setStreakStats({
-                    totalActiveDays: data.activity_heatmap.total_active_days,
-                    maxStreak: data.activity_heatmap.max_streak
-                });
-                processHeatmapData(data.activity_heatmap.daily_counts);
-            }
+                // 2. Org Dashboard Stats (Total Emissions)
+                const dashboardRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/dashboard-stats/?${queryParam}`);
+                if (dashboardRes.ok) {
+                    const data = await dashboardRes.json();
+                    setMonthlyFootprint(data.total_emissions); // Use Total emissions for the summary card
+                }
 
-            // 3. Leaderboard Ranks
-            const leaderboardRes = await fetch(`${import.meta.env.VITE_API_URL}/leaderboard/${emailParam}`);
-            if (leaderboardRes.ok) {
-                const data = await leaderboardRes.json();
-                setMyRanks(data.my_ranks);
+                // 3. Department Distribution
+                const deptRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/department-graph/?${queryParam}`);
+                if (deptRes.ok) {
+                    const data = await deptRes.json();
+
+                    const deptColors = ['#22c55e', '#0ea5e9', '#eab308', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
+                    const formattedDeptData = (data.department_data || []).map((item, index) => ({
+                        name: item.name,
+                        value: item.value,
+                        color: deptColors[index % deptColors.length]
+                    }));
+                    setCategoryData(formattedDeptData);
+                }
+
+            } else {
+                // --- REGULAR USER FETCH ---
+
+                // 1. Dashboard Stats
+                const dashboardRes = await fetch(`${import.meta.env.VITE_API_URL}/dashboard-stats/${emailParam}`);
+                if (dashboardRes.ok) {
+                    const data = await dashboardRes.json();
+                    setFootprintData(data.trend_data);
+
+                    const colors = {
+                        transport: '#22c55e', food: '#0ea5e9', consumption: '#eab308',
+                        energy: '#ef4444', waste: '#6b7280'
+                    };
+                    const formattedCategoryData = Object.entries(data.category_breakdown).map(([key, value]) => ({
+                        name: key.charAt(0).toUpperCase() + key.slice(1),
+                        value: value,
+                        color: colors[key] || '#cbd5e1'
+                    })).filter(item => item.value > 0);
+                    setCategoryData(formattedCategoryData);
+                    setMonthlyFootprint(data.emission_stats.this_month);
+                }
+
+                // 2. Gamification Stats (Heatmap)
+                const gamificationRes = await fetch(`${import.meta.env.VITE_API_URL}/gamification-stats/${emailParam}`);
+                if (gamificationRes.ok) {
+                    const data = await gamificationRes.json();
+                    setStreakStats({
+                        totalActiveDays: data.activity_heatmap.total_active_days,
+                        maxStreak: data.activity_heatmap.max_streak
+                    });
+                    processHeatmapData(data.activity_heatmap.daily_counts);
+                }
+
+                // 3. Leaderboard Ranks
+                const leaderboardRes = await fetch(`${import.meta.env.VITE_API_URL}/leaderboard/${emailParam}`);
+                if (leaderboardRes.ok) {
+                    const data = await leaderboardRes.json();
+                    setMyRanks(data.my_ranks);
+                }
             }
 
         } catch (error) {
@@ -130,7 +179,9 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                         <i className="fas fa-tree text-2xl"></i>
                     </div>
                     <div>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium transition-colors">Monthly Footprint</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium transition-colors">
+                            {user?.is_org_admin ? 'Total Organization Emissions' : 'Monthly Footprint'}
+                        </p>
                         <p className="text-2xl font-bold text-gray-800 dark:text-white transition-colors">{monthlyFootprint} kg CO₂e</p>
                     </div>
                 </div>
@@ -155,45 +206,49 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                 </div>
             </div>
 
-            {/* Activity Streak (Heatmap) */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
-                <div className="mb-4">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white transition-colors">Activity Streak</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1 transition-colors">
-                        Total Active Days: <span className="font-bold text-gray-800 dark:text-white">{streakStats.totalActiveDays}</span> |
-                        Max Streak: <span className="font-bold text-gray-800 dark:text-white">{streakStats.maxStreak}</span>
-                    </p>
-                </div>
+            {/* Activity Streak (Heatmap) - Hide for Org Admins */}
+            {(!user?.is_org_admin) && (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
+                    <div className="mb-4">
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white transition-colors">Activity Streak</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1 transition-colors">
+                            Total Active Days: <span className="font-bold text-gray-800 dark:text-white">{streakStats.totalActiveDays}</span> |
+                            Max Streak: <span className="font-bold text-gray-800 dark:text-white">{streakStats.maxStreak}</span>
+                        </p>
+                    </div>
 
-                {/* Heatmap Grid */}
-                <div className="w-full overflow-x-auto pb-2">
-                    <div className="flex gap-[3px] min-w-max">
-                        {heatmapGrid.map((week, wIndex) => (
-                            <div key={wIndex} className="flex flex-col gap-[3px]">
-                                {week.map((day, dIndex) => (
-                                    <div
-                                        key={`${wIndex}-${dIndex}`}
-                                        className={`w-[10px] h-[10px] rounded-[2px] ${getHeatmapColor(day.level)} hover:ring-2 hover:ring-teal-400 transition-all cursor-pointer relative group`}
-                                        title={`${day.date}: ${day.count} activities`}
-                                    ></div>
-                                ))}
-                            </div>
-                        ))}
+                    {/* Heatmap Grid */}
+                    <div className="w-full overflow-x-auto pb-2">
+                        <div className="flex gap-[3px] min-w-max">
+                            {heatmapGrid.map((week, wIndex) => (
+                                <div key={wIndex} className="flex flex-col gap-[3px]">
+                                    {week.map((day, dIndex) => (
+                                        <div
+                                            key={`${wIndex}-${dIndex}`}
+                                            className={`w-[10px] h-[10px] rounded-[2px] ${getHeatmapColor(day.level)} hover:ring-2 hover:ring-teal-400 transition-all cursor-pointer relative group`}
+                                            title={`${day.date}: ${day.count} activities`}
+                                        ></div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-2 px-1 font-medium transition-colors">
+                        <span>Jan</span>
+                        <span>Mar</span>
+                        <span>May</span>
+                        <span>Jul</span>
+                        <span>Sep</span>
+                        <span>Nov</span>
                     </div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-2 px-1 font-medium transition-colors">
-                    <span>Jan</span>
-                    <span>Mar</span>
-                    <span>May</span>
-                    <span>Jul</span>
-                    <span>Sep</span>
-                    <span>Nov</span>
-                </div>
-            </div>
+            )}
 
             {/* Footprint Trend Chart */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 transition-colors">Footprint Trend (Last 6 Months)</h3>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 transition-colors">
+                    {user?.is_org_admin ? 'Organization Footprint Trend' : 'Footprint Trend (Last 6 Months)'}
+                </h3>
                 <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={footprintData}>
@@ -221,9 +276,11 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                 </div>
             </div>
 
-            {/* Breakdown by Category */}
+            {/* Breakdown (Category or State) */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 transition-colors">Breakdown by Category</h3>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 transition-colors">
+                    {user?.is_org_admin ? 'Emission Distribution by Department' : 'Breakdown by Category'}
+                </h3>
                 <div className="h-64 w-full flex justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -259,6 +316,8 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                     </ResponsiveContainer>
                 </div>
             </div>
+
+
         </div>
     );
 };

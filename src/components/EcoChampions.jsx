@@ -1,6 +1,6 @@
 import React from 'react';
 
-const EcoChampions = ({ isOrg = false }) => {
+const EcoChampions = ({ isOrg = false, user }) => {
     const [champions, setChampions] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [showAll, setShowAll] = React.useState(false);
@@ -8,17 +8,25 @@ const EcoChampions = ({ isOrg = false }) => {
     React.useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
-                // If isOrg, we would typically pass ?org_id=... or call a different endpoint
-                // For now, using the same endpoint but we'll simulate "Org Only" by slicing or renaming in UI
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/leaderboard/`);
+                let url = `${import.meta.env.VITE_API_URL}/leaderboard/`;
+                if (isOrg && user) {
+                    // Fetch Org Members, sorted by XP for the leaderboard view
+                    const queryParam = user.org_id ? `org_id=${user.org_id}` : `email=${user.email}`;
+                    url = `${import.meta.env.VITE_API_URL}/organization/members/?${queryParam}&ordering=-xp`;
+                }
+
+                const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
-                    let list = data.leaderboard;
+                    let list = [];
 
                     if (isOrg) {
-                        // DUMMY LOGIC: Simulate Org-specific list by taking a subset or modifying names
-                        // In real implementation, backend filters this.
-                        list = list.slice(0, 3).map(u => ({ ...u, username: `${u.username} (Org Mate)` }));
+                        // Org Endpoint returns { members: [...] }
+                        list = data.members || [];
+                        // Org members don't need dummy "(Org Mate)" suffix anymore, it's real data
+                    } else {
+                        // Leaderboard Endpoint returns { leaderboard: [...] }
+                        list = data.leaderboard || [];
                     }
                     setChampions(list);
                 }
@@ -30,7 +38,8 @@ const EcoChampions = ({ isOrg = false }) => {
         };
 
         fetchLeaderboard();
-    }, [isOrg]);
+    }, [isOrg, user]);
+
 
     const getRankIcon = (rank) => {
         switch (rank) {

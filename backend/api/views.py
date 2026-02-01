@@ -60,6 +60,12 @@ def update_profile_by_email(request):
         profile = user.profile
         
         serializer = ProfileSerializer(profile, data=profile_data, partial=True)
+        # Custom check for department to handle it manually if not in serializer validation logic (though partial=True should handle it)
+        # But let's ensure it's allowed even if serializer is partial
+        if 'department' in profile_data:
+             profile.department = profile_data['department']
+             # No need to profile.save() here as serializer.save() does it if in fields
+             
         if serializer.is_valid():
             serializer.save()
             # Return updated user data including profile
@@ -1036,10 +1042,184 @@ class OrganizationLoginView(APIView):
                     'org_id': org.org_id,
                     'name': org.name,
                     'admin_name': org.admin_name,
-                    'is_org_admin': True
+                    'is_org_admin': True,
+                    'total_members': org.members.count()
                 })
             else:
                 return Response({'error': 'Invalid PIN'}, status=401)
                 
         except Organization.DoesNotExist:
             return Response({'error': 'Invalid credentials (ID or Admin Name mismatch)'}, status=401)
+
+
+# --- ORGANIZATION DASHBOARD APIS ---
+from django.db.models import Sum, Count, Avg, F
+from django.db.models.functions import TruncMonth
+from .models import Activity, Profile
+
+class OrganizationDashboardStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        org_id = request.query_params.get('org_id')
+        email = request.query_params.get('email')
+        
+        if not org_id and not email:
+            return Response({'error': 'org_id or email required'}, status=400)
+            
+        try:
+            if org_id:
+                org = Organization.objects.get(org_id=org_id)
+            else:
+                org = Organization.objects.get(email=email)
+        except Organization.DoesNotExist:
+            return Response({'error': 'Organization not found'}, status=404)
+            
+        # 1. Total Members
+        total_members = org.members.count()
+        
+        # 2. Collective Emissions (Sum of all activities by members)
+        # We need to join Activity -> User -> Profile -> Org
+        # Activity has 'user'. Profile has 'user'. Profile has 'org'.
+        # So we want Activities where user.profile.org = org
+        total_emissions = Activity.objects.filter(user__profile__organization=org).aggregate(Sum('carbon_footprint_kg'))['carbon_footprint_kg__sum'] or 0
+        
+        # 3. Monthly Improvement (This Month vs Last Month)
+        from datetime import datetime, timedelta
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_end = start_of_month - timedelta(seconds=1)
+        last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        this_month_emissions = Activity.objects.filter(user__profile__organization=org, timestamp__gte=start_of_month).aggregate(Sum('carbon_footprint_kg'))['carbon_footprint_kg__sum'] or 0
+        last_month_emissions = Activity.objects.filter(user__profile__organization=org, timestamp__gte=last_month_start, timestamp__lte=last_month_end).aggregate(Sum('carbon_footprint_kg'))['carbon_footprint_kg__sum'] or 0
+        
+        if last_month_emissions > 0:
+            improvement = ((last_month_emissions - this_month_emissions) / last_month_emissions) * 100
+        else:
+            improvement = 0 # No baseline
+            
+        # 4. Rank (Dummy for now, hard to calc relative rank efficiently without pre-aggregation)
+        org_rank = Organization.objects.count() # Placeholder
+        
+        # 5. State Distribution
+        state_data = Profile.objects.filter(organization=org).values('state').annotate(total=Sum('total_emission_kg')).order_by('-total')
+        state_distribution = {item['state'] or 'Unknown': round(item['total'] or 0, 2) for item in state_data if (item['total'] or 0) > 0}
+        
+        return Response({
+            'total_members': total_members,
+            'total_emissions': round(total_emissions, 2),
+            'monthly_improvement': round(improvement, 1),
+            'org_rank': org_rank,
+            'org_name': org.name,
+            'email': org.email,
+            'state_distribution': state_distribution
+        })
+
+class OrganizationMembersView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        org_id = request.query_params.get('org_id')
+        if not org_id:
+             return Response({'error': 'org_id required'}, status=400)
+        
+        try:
+            org = Organization.objects.get(org_id=org_id)
+        except Organization.DoesNotExist:
+            return Response({'error': 'Organization not found'}, status=404)
+            
+        ordering = request.query_params.get('ordering', '-total_emission_kg')
+        
+        # Check valid ordering fields to prevent errors
+        if ordering.lstrip('-') not in ['xp', 'level', 'total_emission_kg', 'streak']:
+            ordering = '-total_emission_kg'
+            
+        members = Profile.objects.filter(organization=org).select_related('user').order_by(ordering)
+        
+        data = []
+        for m in members:
+            data.append({
+                'user_id': m.user.id,
+                'username': m.user.username,
+                'email': m.user.email,
+                'xp': m.xp,
+                'level': m.level,
+                'streak': m.current_streak,
+                'total_impact': m.total_emission_kg,
+                'joined_date': m.user.date_joined.strftime('%Y-%m-%d'),
+                'city': m.city,
+                'state': m.state,
+                'daily_avg': m.avg_daily_emission_kg
+            })
+            
+        return Response({'members': data})
+
+class OrganizationEmissionsGraphView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        org_id = request.query_params.get('org_id')
+        if not org_id:
+             return Response({'error': 'org_id required'}, status=400)
+             
+        try:
+             org = Organization.objects.get(org_id=org_id)
+        except Organization.DoesNotExist:
+             return Response({'error': 'Organization not found'}, status=404)
+             
+        # Aggregate by Month
+        # TruncMonth requires date field
+        activities = Activity.objects.filter(user__profile__organization=org) \
+            .annotate(month=TruncMonth('timestamp')) \
+            .values('month') \
+            .annotate(total_emission=Sum('carbon_footprint_kg')) \
+            .order_by('month')
+            
+        graph_data = []
+        for entry in activities:
+            if entry['month']:
+                graph_data.append({
+                    'month': entry['month'].strftime('%B %Y'),
+                    'emission': round(entry['total_emission'], 2)
+                })
+                
+        return Response({'graph_data': graph_data})
+
+
+class OrganizationDepartmentGraphView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        org_id = request.query_params.get('org_id')
+        if not org_id:
+             return Response({'error': 'org_id required'}, status=400)
+             
+        try:
+             org = Organization.objects.get(org_id=org_id)
+        except Organization.DoesNotExist:
+             return Response({'error': 'Organization not found'}, status=404)
+        
+        # Aggregate total emissions by department
+        dept_data = Activity.objects.filter(
+            user__profile__organization=org
+        ).values('user__profile__department').annotate(
+            total_emission=Sum('carbon_footprint_kg')
+        ).order_by('-total_emission')
+        
+        graph_data = []
+        for entry in dept_data:
+            dept_name = entry['user__profile__department']
+            # If department is None or 'None' (string), handle it
+            if not dept_name or dept_name == 'None':
+                dept_name = 'Unassigned'
+                
+            total = entry['total_emission'] or 0
+            if total > 0:
+                graph_data.append({
+                    'name': dept_name,
+                    'value': round(total, 2)
+                })
+                
+        return Response({'department_data': graph_data})
+

@@ -14,44 +14,76 @@ const StatCard = ({ icon, value, unit, label, subLabel, isImprovement, isRank })
     </div>
 );
 
-const OrgImpactStats = () => {
-    // Dummy Data for Organization Dashboard
-    const stats = {
-        totalMembers: 124,
-        co2Saved: 850, // kg
-        orgRank: 5,
-        monthlyImprovement: 12 // %
-    };
+const OrgImpactStats = ({ user }) => {
+    const [stats, setStats] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            if (!user) return;
+
+            try {
+                // Determine identifier (org_id is preferred if available)
+                const queryParam = user.org_id ? `org_id=${user.org_id}` : `email=${user.email}`;
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/organization/dashboard-stats/?${queryParam}`);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    setStats(data);
+                } else {
+                    console.error("Failed to fetch dashboard stats");
+                }
+            } catch (error) {
+                console.error("Error fetching stats:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [user]);
+
+    if (loading) {
+        return <div className="text-center py-8 text-gray-500">Loading impact stats...</div>;
+    }
+
+    if (!stats) {
+        return null; // Or show error
+    }
 
     return (
         <div>
-            <h2 className="text-3xl font-bold text-teal-800 dark:text-teal-400 mb-8 text-center transition-colors duration-300">Our Impact</h2>
+            <h2 className="text-3xl font-bold text-teal-800 dark:text-teal-400 mb-2 text-center transition-colors duration-300">
+                {stats.org_name ? `${stats.org_name}'s Impact` : "Our Impact"}
+            </h2>
+            <p className="text-center text-gray-500 mb-8 text-sm">Organization Dashboard</p>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     icon={<i className="fas fa-users"></i>}
-                    value={stats.totalMembers}
+                    value={stats.total_members}
                     label="Total Members"
-                    subLabel="Active Users"
+                    subLabel="Active Employees"
                 />
                 <StatCard
                     icon={<i className="fas fa-leaf"></i>}
-                    value={stats.co2Saved}
+                    value={stats.total_emissions}
                     unit="kg CO2e"
-                    label="Total CO2 Saved"
-                    subLabel="Collective Impact"
+                    label="Collective Emissions"
+                    subLabel="Total Footprint"
                 />
                 <StatCard
                     icon={<i className="fas fa-trophy"></i>}
-                    value={`#${stats.orgRank}`}
+                    value={`#${stats.org_rank}`}
                     label="Organization Rank"
                     isRank={true}
                 />
                 <StatCard
                     icon={<i className="fas fa-arrow-down"></i>}
-                    value={`↓ ${stats.monthlyImprovement}%`}
+                    value={`${stats.monthly_improvement}%`}
                     label="Monthly Improvement"
-                    isImprovement={true}
-                    subLabel="Reduction"
+                    isImprovement={stats.monthly_improvement > 0}
+                    subLabel={stats.monthly_improvement > 0 ? "Reduction" : "Increase"}
                 />
             </div>
         </div>

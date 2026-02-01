@@ -8,6 +8,10 @@ const INDIAN_STATES = [
     "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
 ];
 
+const DEPARTMENTS = [
+    'IT', 'HR', 'Sales', 'Marketing', 'Operations', 'Finance', 'Engineering', 'Legal', 'Other'
+];
+
 const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const [formData, setFormData] = useState({
         first_name: '',
@@ -15,7 +19,8 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         phone_no: '',
         city: '',
         state: '',
-        target_org_id: ''
+        target_org_id: '',
+        department: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -30,9 +35,15 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                 phone_no: user.profile.phone_no || '',
                 city: user.profile.city || '',
                 state: user.profile.state || '',
-                target_org_id: ''
+                target_org_id: user.profile.org_id || '', // Pre-fill if exists, so they can see/edit department
+                department: user.profile.department || ''
             });
-            // Don't auto-verify existing org, as we are joining a NEW one
+
+            // If user already has an org, mark as verified implicitly so they can see dept
+            if (user.profile.org_id) {
+                setOrgVerification({ status: 'success', message: `Verified: ${user.profile.org_name || 'Current Org'}` });
+            }
+            // Don't auto-verify existing org, as we are joining a NEW one -> Wait, if strictly editing, pre-fill is better.
         }
     }, [user]);
 
@@ -224,6 +235,28 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                                 </p>
                             )}
                         </div>
+
+                        {/* Department Selection - Only if Org Verified */}
+                        {orgVerification.status === 'success' && (
+                            <div className="animate-fadeIn">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                                <div className="relative">
+                                    <i className="fas fa-briefcase absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm"></i>
+                                    <select
+                                        name="department"
+                                        value={formData.department}
+                                        onChange={handleChange}
+                                        className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500 dark:focus:border-teal-400 outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none"
+                                    >
+                                        <option value="">Select Department</option>
+                                        {DEPARTMENTS.map(dept => (
+                                            <option key={dept} value={dept}>{dept}</option>
+                                        ))}
+                                    </select>
+                                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 mt-2 transition-colors">

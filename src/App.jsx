@@ -22,6 +22,7 @@ import Challenges from './components/Challenges';
 import BackgroundAnimation from './components/BackgroundAnimation';
 import EcoBot from './components/EcoBot';
 import OrgImpactStats from './components/OrgImpactStats';
+import OrgEmissionsGraph from './components/OrgEmissionsGraph';
 import './App.css';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -225,7 +226,8 @@ function App() {
                     {user.is_org_admin ? (
                       /* ORGANIZATION VIEW */
                       <>
-                        <div id="impact-stats"><OrgImpactStats /></div>
+                        <div id="impact-stats"><OrgImpactStats user={user} /></div>
+                        <div id="org-graph"><OrgEmissionsGraph user={user} /></div>
                         {/* HIDING Recent Activities & Daily Engagement for Org Admins */}
                       </>
                     ) : (
@@ -245,15 +247,15 @@ function App() {
               <div id="global-emissions"><EmissionsMap /></div>
 
               {/* Show Comparison only for Regular Users */}
+              {/* Show Comparison only for Regular Users */}
               {!user?.is_org_admin && (
-                <>
-                  <div id="comparison"><ImpactSection /></div>
-                  <div id="community-stats"><CommunityImpactMap /></div>
-                </>
+                <div id="comparison"><ImpactSection /></div>
               )}
 
-              {/* Eco Champions: Pass isOrg prop */}
-              <div id="eco-champions"><EcoChampions isOrg={user?.is_org_admin} /></div>
+              <div id="community-stats"><CommunityImpactMap /></div>
+
+              {/* Eco Champions: Pass isOrg prop and user */}
+              <div id="eco-champions"><EcoChampions isOrg={user?.is_org_admin} user={user} /></div>
 
               {/* Hide Live Actions, Insights, Breakdown, Comparison for Org Admin */}
               {!user?.is_org_admin && (

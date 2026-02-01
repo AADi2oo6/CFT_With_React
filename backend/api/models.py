@@ -29,6 +29,19 @@ class Profile(models.Model):
     phone_no = models.CharField(max_length=20, null=True, blank=True)
     city = models.CharField(max_length=100, null=True, blank=True)
     state = models.CharField(max_length=100, null=True, blank=True)
+    
+    DEPARTMENT_CHOICES = [
+        ('IT', 'IT'),
+        ('HR', 'Human Resources'),
+        ('Sales', 'Sales'),
+        ('Marketing', 'Marketing'),
+        ('Operations', 'Operations'),
+        ('Finance', 'Finance'),
+        ('Engineering', 'Engineering'),
+        ('Legal', 'Legal'),
+        ('Other', 'Other'),
+    ]
+    department = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES, null=True, blank=True, default=None)
 
     carbon_budget_kg = models.FloatField(default=500.0)
     total_emission_kg = models.FloatField(default=0.0, help_text="Lifetime emission")
