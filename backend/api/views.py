@@ -42,7 +42,9 @@ class LoginView(APIView):
         if user:
             login(request, user)
             serializer = UserSerializer(user)
-            return Response({"token": "dummy-token", "user": serializer.data})
+            data = serializer.data
+            data['token'] = "dummy-token"
+            return Response(data)
         
         return Response({"error": "Invalid Credentials"}, status=status.HTTP_400_BAD_REQUEST)
 

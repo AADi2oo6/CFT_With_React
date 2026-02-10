@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'api',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -169,3 +170,15 @@ if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
 else:
     print(f"Email credentials loaded for: {EMAIL_HOST_USER}")
 EMAIL_USE_TLS = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Carbon Footprint Tracker API',
+    'DESCRIPTION': 'API for tracking and analyzing carbon footprints.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Logo from './Logo';
 
 const Header = ({ user, onLoginClick, onRegisterClick, onLogout, onNavigate, currentPage, isDarkMode, toggleTheme }) => {
@@ -10,7 +10,7 @@ const Header = ({ user, onLoginClick, onRegisterClick, onLogout, onNavigate, cur
     });
     const [memberCount, setMemberCount] = useState(0);
 
-    useState(() => {
+    useEffect(() => {
         const fetchStats = async () => {
             if (user) {
                 try {
