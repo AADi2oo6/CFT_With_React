@@ -101,8 +101,8 @@ const EcoBot = ({ onNavigate }) => {
                             <div key={index} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
                                 <div
                                     className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.isUser
-                                            ? 'bg-green-600 text-white rounded-br-none'
-                                            : 'bg-white border border-gray-200 text-gray-700 rounded-tl-none shadow-sm'
+                                        ? 'bg-green-600 text-white rounded-br-none'
+                                        : 'bg-white border border-gray-200 text-gray-700 rounded-tl-none shadow-sm'
                                         }`}
                                 >
                                     {msg.text}

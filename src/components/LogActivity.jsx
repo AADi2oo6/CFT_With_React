@@ -62,56 +62,58 @@ const LogActivity = () => {
     // Live Data Injection Effect
     React.useEffect(() => {
         let interval;
-        let offlineTimeout;
         if (connectionStatus === 'live' && energyForecast) {
 
-            setIsSimulatedOffline(true);
-            setActiveDevices({ bulb: false, iron: false });
-            setCurrentTime(new Date());
+            // Initial fetch before interval starts
+            const pollLiveData = async () => {
+                const now = new Date();
+                setCurrentTime(now);
 
-            // Poll the backend API every 10 seconds (Simulated)
-            offlineTimeout = setTimeout(() => {
-                setIsSimulatedOffline(false);
+                try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL}/iot-live/`);
+                    const data = await res.json();
+                    
+                    if (data.status === 'offline') {
+                        setIsSimulatedOffline(true);
+                        setActiveDevices({ bulb: false, iron: false });
+                    } else {
+                        setIsSimulatedOffline(false);
+                        // User requested random 8-13W despite real data reading for visual demo
+                        const power = Math.floor(Math.random() * (13 - 8 + 1)) + 8;
+                        
+                        setActiveDevices({ bulb: true, iron: false });
 
-                const generateMockData = () => {
-                    const now = new Date();
-                    setCurrentTime(now);
+                        // EnergyIncrement (Wh) = Power (W) * (10s / 3600s/h)
+                        const energyIncrementWh = power * (10 / 3600);
+                        // EmissionsIncrement (kgCO2) = Energy (kWh) * 0.82
+                        const emissionsIncrementKg = (energyIncrementWh / 1000) * 0.82;
 
-                    const power = Math.floor(Math.random() * (13 - 8 + 1)) + 8; // Random between 8 and 13
+                        setLiveStats(prev => ({
+                            energy: prev.energy + energyIncrementWh,
+                            emissions: prev.emissions + emissionsIncrementKg
+                        }));
 
-                    // Update Bulb status dynamically based on if it's drawing power
-                    let devices = { bulb: true, iron: false };
-                    setActiveDevices(devices);
+                        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
-                    // Calculate Live Stats
-                    // EnergyIncrement (Wh) = Power (W) * (10s / 3600s/h)
-                    const energyIncrementWh = power * (10 / 3600);
-                    // EmissionsIncrement (kgCO2) = Energy (kWh) * 0.82
-                    const emissionsIncrementKg = (energyIncrementWh / 1000) * 0.82;
+                        setLiveDataPoints(prevPoints => {
+                            const newPoint = {
+                                display_time: timeStr,
+                                power: parseFloat(power.toFixed(2)),
+                                type: 'live'
+                            };
+                            if (prevPoints.length > 30) return [...prevPoints.slice(1), newPoint];
+                            return [...prevPoints, newPoint];
+                        });
+                    }
+                } catch (err) {
+                    console.error("IoT Live backend error:", err);
+                    setIsSimulatedOffline(true);
+                }
+            };
 
-                    setLiveStats(prev => ({
-                        energy: prev.energy + energyIncrementWh,
-                        emissions: prev.emissions + emissionsIncrementKg
-                    }));
-
-                    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-
-                    setLiveDataPoints(prevPoints => {
-                        const newPoint = {
-                            display_time: timeStr,
-                            power: parseFloat(power.toFixed(2)),
-                            type: 'live'
-                        };
-                        // Keep last 30 points (5 minutes of data at 10s intervals)
-                        if (prevPoints.length > 30) return [...prevPoints.slice(1), newPoint];
-                        return [...prevPoints, newPoint];
-                    });
-                };
-
-                generateMockData();
-                interval = setInterval(generateMockData, 10000);
-
-            }, 5000);
+            // Run immediately, then every 10 seconds
+            pollLiveData();
+            interval = setInterval(pollLiveData, 10000);
 
         } else {
             setIsSimulatedOffline(false);
@@ -121,7 +123,6 @@ const LogActivity = () => {
 
         return () => {
             if (interval) clearInterval(interval);
-            if (offlineTimeout) clearTimeout(offlineTimeout);
         };
     }, [connectionStatus, energyForecast]);
 
