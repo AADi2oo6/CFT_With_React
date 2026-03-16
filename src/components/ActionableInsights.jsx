@@ -84,11 +84,11 @@ const ActionableInsights = () => {
                         <div className="space-y-4">
                             <div>
                                 <h4 className="font-semibold text-gray-800 dark:text-white leading-tight mb-1 transition-colors">LEAP India Begins AQI Awareness Drive</h4>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 transition-colors">26 Nov, 2025</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 transition-colors">26 Feb, 2026</p>
                             </div>
                             <div>
                                 <h4 className="font-semibold text-gray-800 dark:text-white leading-tight mb-1 transition-colors">School-Led Tree Plantation Drive</h4>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 transition-colors">20 Nov, 2025</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 transition-colors">20 Feb, 2026</p>
                             </div>
                         </div>
                     </div>

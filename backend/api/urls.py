@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView, ChatBotView, OrganizationCreateView, OrganizationDetailView, OrganizationRegisterView, OrganizationLoginView, OrganizationDashboardStatsView, OrganizationMembersView, OrganizationEmissionsGraphView, OrganizationDepartmentGraphView
+from .views import RegisterView, LoginView, update_profile_by_email, community_impact_map, LogActivityView, ActivityDetailView, UserDashboardStatsView, UserGamificationStatsView, EnergyForecastView, LeaderboardView, GlobalImpactView, CommunityListView, CommunityDetailView, CommunityActionView, SendOTPView, VerifyOTPView, ChatBotView, OrganizationCreateView, OrganizationDetailView, OrganizationRegisterView, OrganizationLoginView, OrganizationDashboardStatsView, OrganizationMembersView, OrganizationEmissionsGraphView, OrganizationDepartmentGraphView, IoTDeviceLiveView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -13,6 +13,7 @@ urlpatterns = [
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('global-impact/', GlobalImpactView.as_view(), name='global-impact'),
     path('energy-forecast/', EnergyForecastView.as_view(), name='energy-forecast'),
+    path('iot-live/', IoTDeviceLiveView.as_view(), name='iot-live'),
     path('communities/', CommunityListView.as_view(), name='community-list'),
     path('communities/<int:pk>/', CommunityDetailView.as_view(), name='community-detail'),
     path('communities/<int:pk>/join/', CommunityActionView.as_view(), {'action': 'join'}, name='community-join'),

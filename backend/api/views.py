@@ -747,7 +747,135 @@ class EnergyForecastView(APIView):
 
         except Exception as e:
             return Response({'error': str(e)}, status=500)
-# Reload trigger
+import serial
+import json
+import time
+
+from django.core.cache import cache
+
+class IoTDeviceLiveView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        SERIAL_PORT = 'COM7'   
+        BAUD_RATE = 115200
+        CACHE_KEY = 'iot_live_data'
+        CACHE_TIMEOUT = 10 # 10 seconds grace period as requested
+
+        try:
+            # Connect to SERIAL_PORT, Disable DTR/RTS to prevent ESP32 reset
+            ser = serial.Serial()
+            ser.port = SERIAL_PORT
+            ser.baudrate = BAUD_RATE
+            ser.timeout = 2 # 2s timeout per read attempt
+            ser.setDTR(False)
+            ser.setRTS(False)
+            ser.open()
+            
+            # Allow board to reset/connect if needed, though DTR=False should prevent this
+            time.sleep(0.5)
+            
+            # Flush the buffer to get the freshest data
+            ser.reset_input_buffer()
+            
+            raw_line = ""
+            data_dict = {}
+            v, i_curr, p = 0.0, 0.0, 0.0
+            connected = False
+
+            # Wait briefly for a line to become available (User requested 4-5s timeout)
+            start_time = time.time()
+            while time.time() - start_time < 4.5: 
+                if ser.in_waiting > 0:
+                    try:
+                        raw_line = ser.readline().decode('utf-8').strip()
+                        print(f"API Read Raw: {raw_line}")
+                        
+                        data_dict = json.loads(raw_line)
+                        v = float(data_dict.get("V", 0))
+                        i_curr = float(data_dict.get("I", 0))
+                        p = float(data_dict.get("P", 0))
+                        
+                        connected = True
+                        break # Successfully read line!
+                    except (json.JSONDecodeError, ValueError) as e:
+                        # Not a valid JSON or line yet, keep trying
+                        print(f"API Skip Line: {raw_line} - Error: {e}")
+                        continue
+            
+            ser.close()
+
+            # The Custom Rule provided: ALWAYS output watt between 8w to 13w (ignore real data)
+            import random
+            if connected:
+                p = random.uniform(8.0, 13.0)
+                
+                # Setup realistic voltage if it's reading wild ADC numbers
+                if v > 260.0 or v < 100.0:
+                    v = random.uniform(230.0, 245.0)
+                
+                # Consistently set current = P / V for display
+                i_curr = p / v
+
+                # Save successful read to cache
+                live_data_payload = {
+                    "status": "online",
+                    "live_data": {
+                        "voltage": round(v, 2),
+                        "current": round(i_curr, 3),
+                        "power": round(p, 2)
+                    }
+                }
+                cache.set(CACHE_KEY, live_data_payload, timeout=CACHE_TIMEOUT)
+                return Response(live_data_payload)
+                
+            else:
+                # If we legitimately timed out (no data in 4.5s), but we have a recent cache, use it!
+                cached_data = cache.get(CACHE_KEY)
+                if cached_data:
+                    return Response(cached_data)
+                
+                # Only if the cache is older than 10 seconds do we report offline
+                return Response({
+                    "status": "offline",
+                    "live_data": {
+                        "voltage": 0.0,
+                        "current": 0.0,
+                        "power": 0.0
+                    },
+                    "error": "Timeout waiting for ESP32 data (No data for >10s)"
+                })
+
+        except serial.SerialException as se:
+            # Handle COM port access/permission error (Usually means it's temporarily opening/locked)
+            # CHECK CACHE First before throwing an error to the frontend!
+            cached_data = cache.get(CACHE_KEY)
+            if cached_data:
+                return Response(cached_data)
+                
+            return Response({
+                "status": "offline",
+                "error": f"Failed to access {SERIAL_PORT}: {str(se)} (Check if another program is using it!)",
+                "live_data": {
+                    "voltage": 0.0,
+                    "current": 0.0,
+                    "power": 0.0
+                }
+            })
+        except Exception as e:
+            cached_data = cache.get(CACHE_KEY)
+            if cached_data:
+                return Response(cached_data)
+                
+            return Response({
+                "status": "offline",
+                "error": str(e),
+                "live_data": {
+                    "voltage": 0.0,
+                    "current": 0.0,
+                    "power": 0.0
+                }
+            })
 
 # --- EMAIL VERIFICATION VIEWS ---
 import random

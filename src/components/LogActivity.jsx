@@ -29,6 +29,14 @@ const LogActivity = () => {
     const [connectionStatus, setConnectionStatus] = useState('disconnected'); // disconnected, searching, connecting, live
     const [liveDataPoints, setLiveDataPoints] = useState([]);
     const [currentTime, setCurrentTime] = useState(null); // Real "Now"
+    const [simulationTick, setSimulationTick] = useState(0);
+    const [activeDevices, setActiveDevices] = useState({ bulb: false, iron: false });
+    const [liveStats, setLiveStats] = useState({ energy: 0, emissions: 0 });
+
+    // Add Devices State
+    const [showAddDevice, setShowAddDevice] = useState(false);
+    const [newDevice, setNewDevice] = useState({ name: '', power: '' });
+    const [customDevices, setCustomDevices] = useState([]);
 
     const fetchEnergyForecast = async () => {
         setLoadingForecast(true);
@@ -49,38 +57,71 @@ const LogActivity = () => {
         }
     };
 
+    const [isSimulatedOffline, setIsSimulatedOffline] = useState(false);
+
     // Live Data Injection Effect
     React.useEffect(() => {
         let interval;
+        let offlineTimeout;
         if (connectionStatus === 'live' && energyForecast) {
-            // Start Interval
-            interval = setInterval(() => {
-                const now = new Date();
-                setCurrentTime(now);
 
-                // 1. Generate Random Power (9W - 11W) + Noise
-                const randomPower = (Math.random() * 2) + 9; // Range: 9.0 to 11.0
+            setIsSimulatedOffline(true);
+            setActiveDevices({ bulb: false, iron: false });
+            setCurrentTime(new Date());
 
-                // 2. Add to Live Data Points
-                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            // Poll the backend API every 10 seconds (Simulated)
+            offlineTimeout = setTimeout(() => {
+                setIsSimulatedOffline(false);
 
-                setLiveDataPoints(prev => {
-                    const newPoint = {
-                        display_time: timeStr,
-                        power: parseFloat(randomPower.toFixed(2)),
-                        type: 'live'
-                    };
-                    // Keep the graph clean? Limit points if needed, but Recharts handles it well.
-                    // Let's keep last 20 points to avoid memory issues over long run
-                    if (prev.length > 20) return [...prev.slice(1), newPoint];
-                    return [...prev, newPoint];
-                });
+                const generateMockData = () => {
+                    const now = new Date();
+                    setCurrentTime(now);
 
-            }, 5000); // 5 seconds real-time
+                    const power = Math.floor(Math.random() * (13 - 8 + 1)) + 8; // Random between 8 and 13
+
+                    // Update Bulb status dynamically based on if it's drawing power
+                    let devices = { bulb: true, iron: false };
+                    setActiveDevices(devices);
+
+                    // Calculate Live Stats
+                    // EnergyIncrement (Wh) = Power (W) * (10s / 3600s/h)
+                    const energyIncrementWh = power * (10 / 3600);
+                    // EmissionsIncrement (kgCO2) = Energy (kWh) * 0.82
+                    const emissionsIncrementKg = (energyIncrementWh / 1000) * 0.82;
+
+                    setLiveStats(prev => ({
+                        energy: prev.energy + energyIncrementWh,
+                        emissions: prev.emissions + emissionsIncrementKg
+                    }));
+
+                    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+                    setLiveDataPoints(prevPoints => {
+                        const newPoint = {
+                            display_time: timeStr,
+                            power: parseFloat(power.toFixed(2)),
+                            type: 'live'
+                        };
+                        // Keep last 30 points (5 minutes of data at 10s intervals)
+                        if (prevPoints.length > 30) return [...prevPoints.slice(1), newPoint];
+                        return [...prevPoints, newPoint];
+                    });
+                };
+
+                generateMockData();
+                interval = setInterval(generateMockData, 10000);
+
+            }, 5000);
+
+        } else {
+            setIsSimulatedOffline(false);
+            setActiveDevices({ bulb: false, iron: false });
+            setLiveStats({ energy: 0, emissions: 0 });
         }
 
         return () => {
             if (interval) clearInterval(interval);
+            if (offlineTimeout) clearTimeout(offlineTimeout);
         };
     }, [connectionStatus, energyForecast]);
 
@@ -615,11 +656,18 @@ const LogActivity = () => {
                                     </div>
                                     <div className="text-right">
                                         <div className="text-xs text-gray-400 uppercase tracking-wider font-bold">System Status</div>
-                                        <div className="text-green-500 font-bold flex items-center justify-end gap-1">
-                                            <i className="fas fa-check-circle"></i>
-                                            Restored
-                                        </div>
-                                        <div className="text-xs text-gray-400">Gap Filled using AI</div>
+                                        {activeDevices.bulb || activeDevices.iron || Object.values(customDevices).some(d => d.active) ? (
+                                            <div className="text-teal-500 font-bold flex items-center justify-end gap-1">
+                                                <i className="fas fa-check-circle"></i>
+                                                Online
+                                            </div>
+                                        ) : (
+                                            <div className="text-red-500 font-bold flex items-center justify-end gap-1">
+                                                <i className="fas fa-times-circle"></i>
+                                                Offline
+                                            </div>
+                                        )}
+                                        <div className="text-xs text-gray-400">Live IoT Syncing</div>
                                     </div>
                                 </div>
 
@@ -786,69 +834,149 @@ const LogActivity = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                                    {/* Bulb Row */}
+                                                    <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${activeDevices.bulb ? '' : 'opacity-75'}`}>
                                                         <td className="px-6 py-4 font-bold text-gray-800 dark:text-white">
                                                             <div className="flex items-center gap-2">
-                                                                <i className="fas fa-lightbulb text-yellow-500"></i> Smart LED Bulb
+                                                                <i className={`fas fa-lightbulb ${activeDevices.bulb ? 'text-yellow-400 drop-shadow-md' : 'text-gray-400'}`}></i> Smart LED Bulb
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">9 W</td>
                                                         <td className="px-6 py-4 font-mono font-bold text-yellow-600 dark:text-yellow-400">
-                                                            {liveDataPoints.length > 0 ? `${liveDataPoints[liveDataPoints.length - 1].power} W` : '-'}
+                                                            {activeDevices.bulb ? (liveDataPoints.length > 0 ? liveDataPoints[liveDataPoints.length - 1].power + ' W' : '0.00 W') : '0.00 W'}
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Active
-                                                            </span>
+                                                            {activeDevices.bulb ? (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span> Active
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
+                                                                </span>
+                                                            )}
                                                         </td>
-                                                        <td className="px-6 py-4 text-right italic text-xs">Just now</td>
+                                                        <td className="px-6 py-4 text-right italic text-xs text-gray-400">
+                                                            {currentTime ? currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                                                        </td>
                                                     </tr>
-                                                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors opacity-75">
-                                                        <td className="px-6 py-4 font-medium">
+
+                                                    {/* Electric Iron Row */}
+                                                    <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${activeDevices.iron ? '' : 'opacity-75'}`}>
+                                                        <td className="px-6 py-4 font-bold text-gray-800 dark:text-white">
                                                             <div className="flex items-center gap-2">
-                                                                <i className="fas fa-fan text-gray-400"></i> Ceiling Fan
+                                                                <i className={`fas fa-tshirt ${activeDevices.iron ? 'text-orange-500 drop-shadow-md' : 'text-gray-400'}`}></i> Electric Iron
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">75 W</td>
-                                                        <td className="px-6 py-4 font-mono">0 W</td>
+                                                        <td className="px-6 py-4">900 W</td>
+                                                        <td className="px-6 py-4 font-mono font-bold text-orange-600 dark:text-orange-400">
+                                                            {activeDevices.iron ? (liveDataPoints.length > 0 ? liveDataPoints[liveDataPoints.length - 1].power + ' W' : '0.00 W') : '0.00 W'}
+                                                        </td>
                                                         <td className="px-6 py-4">
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
-                                                            </span>
+                                                            {activeDevices.iron ? (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span> Active
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
+                                                                </span>
+                                                            )}
                                                         </td>
-                                                        <td className="px-6 py-4 text-right italic text-xs">Yesterday 21:00</td>
+                                                        <td className="px-6 py-4 text-right italic text-xs text-gray-400">
+                                                            {currentTime ? currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                                                        </td>
                                                     </tr>
-                                                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors opacity-75">
-                                                        <td className="px-6 py-4 font-medium">
-                                                            <div className="flex items-center gap-2">
-                                                                <i className="fas fa-water text-gray-400"></i> Water Geyser
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">2000 W</td>
-                                                        <td className="px-6 py-4 font-mono">0 W</td>
-                                                        <td className="px-6 py-4">
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right italic text-xs">Yesterday 20:30</td>
-                                                    </tr>
+
+                                                    {/* Custom Devices */}
+                                                    {customDevices.map((device, index) => (
+                                                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors opacity-75">
+                                                            <td className="px-6 py-4 font-bold text-gray-800 dark:text-white">
+                                                                <div className="flex items-center gap-2">
+                                                                    <i className="fas fa-plug text-gray-400"></i> {device.name}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">{device.power} W</td>
+                                                            <td className="px-6 py-4 font-mono font-bold text-gray-600 dark:text-gray-400">
+                                                                0 W
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right italic text-xs">Manual Add</td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
+
+                                            {/* Add Device Button & Form */}
+                                            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                                {!showAddDevice ? (
+                                                    <button
+                                                        onClick={() => setShowAddDevice(true)}
+                                                        className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-medium rounded transition-colors flex items-center gap-2"
+                                                    >
+                                                        <i className="fas fa-plus"></i> Add Device
+                                                    </button>
+                                                ) : (
+                                                    <div className="flex flex-wrap items-end gap-3">
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-500 mb-1">Device Name</label>
+                                                            <input
+                                                                type="text"
+                                                                value={newDevice.name}
+                                                                onChange={(e) => setNewDevice({ ...newDevice, name: e.target.value })}
+                                                                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                                                                placeholder="e.g. Microwave"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-500 mb-1">Rated Power (W)</label>
+                                                            <input
+                                                                type="number"
+                                                                value={newDevice.power}
+                                                                onChange={(e) => setNewDevice({ ...newDevice, power: e.target.value })}
+                                                                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-teal-500 outline-none text-sm w-32"
+                                                                placeholder="e.g. 1200"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (newDevice.name && newDevice.power) {
+                                                                    setCustomDevices([...customDevices, newDevice]);
+                                                                    setNewDevice({ name: '', power: '' });
+                                                                    setShowAddDevice(false);
+                                                                }
+                                                            }}
+                                                            className="px-4 py-1.5 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 h-[34px]"
+                                                        >
+                                                            Update List
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowAddDevice(false)}
+                                                            className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors h-[34px]"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Stats Grid */}
                                         <div className="grid grid-cols-2 gap-4 mb-6">
                                             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Gap Duration (Filled)</div>
+                                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total Energy Consumed</div>
                                                 <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                                                    {energyForecast.stats.gap_duration}
+                                                    {liveStats.energy.toFixed(4)} <span className="text-sm font-normal text-gray-500">Wh</span>
                                                 </div>
                                             </div>
                                             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Predicted Gap Carbon</div>
+                                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Live Carbon Emissions</div>
                                                 <div className="text-2xl font-bold text-teal-600">
-                                                    {energyForecast.stats.predicted_carbon}
+                                                    {liveStats.emissions.toFixed(6)} <span className="text-sm font-normal text-gray-500">kg CO₂</span>
                                                 </div>
                                             </div>
                                         </div>
