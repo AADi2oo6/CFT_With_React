@@ -478,6 +478,75 @@ const LogActivity = () => {
         fetchStats();
     }, [history]); // Refresh stats when history changes (i.e., after logging/deleting)
 
+    // ── Gamification state (seeded from API) ────────────────────────
+    const [gamificationStats, setGamificationStats] = useState(null);
+    const [xp, setXp] = useState(0);
+    const [ecoCoins, setEcoCoins] = useState(0);
+    const [penaltyToast, setPenaltyToast] = useState(null);
+    const penaltyApplied = React.useRef({ daily: false, monthly: false });
+
+    // Fetch real gamification data from /api/gamification-stats/
+    const fetchGamificationStats = async () => {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            // Hardcode email fallback for demo; normally read from localStorage
+            const email = user.email || 'adishahil346@gmail.com';
+            const url = `${import.meta.env.VITE_API_URL}/gamification-stats/?email=${encodeURIComponent(email)}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                // API wraps data under 'user_stats' key
+                const stats = data.user_stats;
+                if (stats) {
+                    setGamificationStats(stats);
+                    setXp(stats.xp ?? 0);
+                    setEcoCoins(stats.eco_coins ?? 0);
+                }
+            } else {
+                console.error('Gamification stats fetch failed:', res.status);
+            }
+        } catch (err) {
+            console.error('Error fetching gamification stats:', err);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchGamificationStats();
+    }, []);
+
+    // Runs whenever budget stats update — applies XP/EcoCoin penalties once per overrun
+    React.useEffect(() => {
+        const { daily_limit, daily_used, monthly_limit, monthly_used } = stats.budget;
+
+        if (daily_used > daily_limit && !penaltyApplied.current.daily) {
+            penaltyApplied.current.daily = true;
+            setXp(prev => Math.max(0, prev - 10));
+            setEcoCoins(prev => Math.max(0, prev - 2));
+            setPenaltyToast({ xp: -10, coins: -2, reason: 'Daily budget exceeded!' });
+            setTimeout(() => setPenaltyToast(null), 4000);
+        } else if (daily_used <= daily_limit) {
+            penaltyApplied.current.daily = false;
+        }
+
+        if (monthly_used > monthly_limit && !penaltyApplied.current.monthly) {
+            penaltyApplied.current.monthly = true;
+            setXp(prev => Math.max(0, prev - 50));
+            setEcoCoins(prev => Math.max(0, prev - 10));
+            setPenaltyToast({ xp: -50, coins: -10, reason: 'Monthly budget exceeded!' });
+            setTimeout(() => setPenaltyToast(null), 4000);
+        } else if (monthly_used <= monthly_limit) {
+            penaltyApplied.current.monthly = false;
+        }
+    }, [stats.budget]);
+
+    // ── Budget helper ────────────────────────────────────────────────
+    const getBudgetMeta = (used, limit) => {
+        const pct = limit > 0 ? (used / limit) * 100 : 0;
+        if (pct >= 100) return { pct, barColor: 'bg-red-500',    label: 'text-red-600 dark:text-red-400',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',    status: 'OVER LIMIT', remaining: `${(used - limit).toFixed(1)} kg OVER budget!` };
+        if (pct >= 75)  return { pct, barColor: 'bg-amber-400',  label: 'text-amber-600 dark:text-amber-400', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', status: 'WARNING',    remaining: `${(limit - used).toFixed(1)} kg remaining` };
+        return              { pct, barColor: 'bg-emerald-500', label: 'text-emerald-600 dark:text-emerald-400', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', status: 'GOOD',   remaining: `${(limit - used).toFixed(1)} kg remaining` };
+    };
+
     return (
         <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
 
@@ -508,28 +577,172 @@ const LogActivity = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Daily Budget</h3>
-                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
-                        <div
-                            className={`h-4 rounded-full ${stats.budget.daily_used > stats.budget.daily_limit ? 'bg-red-500' : 'bg-teal-500'}`}
-                            style={{ width: `${Math.min((stats.budget.daily_used / stats.budget.daily_limit) * 100, 100)}%` }}
-                        ></div>
+            {/* ── Penalty Toast ───────────────────────────────────────── */}
+            {penaltyToast && (
+                <div className="fixed top-6 right-6 z-50 animate-bounce">
+                    <div className="bg-red-600 text-white px-5 py-4 rounded-2xl shadow-2xl border border-red-400 flex items-start gap-3 max-w-xs">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                            <p className="font-bold text-sm">{penaltyToast.reason}</p>
+                            <p className="text-xs mt-1 opacity-90">{penaltyToast.xp} XP &nbsp;|&nbsp; {penaltyToast.coins} EcoCoins</p>
+                        </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">Used {stats.budget.daily_used} of {stats.budget.daily_limit} kg</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Monthly Budget</h3>
-                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
-                        <div
-                            className={`h-4 rounded-full ${stats.budget.monthly_used > stats.budget.monthly_limit ? 'bg-red-500' : 'bg-teal-500'}`}
-                            style={{ width: `${Math.min((stats.budget.monthly_used / stats.budget.monthly_limit) * 100, 100)}%` }}
-                        ></div>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-2">Used {stats.budget.monthly_used} of {stats.budget.monthly_limit} kg</p>
-                </div>
-            </div>
+            )}
+
+            {/* ── Budget Cards ────────────────────────────────────────── */}
+            {(() => {
+                const daily   = getBudgetMeta(stats.budget.daily_used,   stats.budget.daily_limit);
+                const monthly = getBudgetMeta(stats.budget.monthly_used, stats.budget.monthly_limit);
+                const isOverall = daily.pct >= 100 || monthly.pct >= 100;
+                const isWarning = !isOverall && (daily.pct >= 75 || monthly.pct >= 75);
+
+                // ── Happy Score tree state ────────────────────────────
+                const treeEmoji    = isOverall ? '🥀' : isWarning ? '🌿' : '🌳';
+                const treeMood     = isOverall ? 'Critical' : isWarning ? 'Warning' : 'Healthy';
+                const treeBg       = isOverall ? 'from-red-50 to-rose-100 dark:from-red-900/20 dark:to-rose-900/20'
+                                   : isWarning ? 'from-amber-50 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20'
+                                   :             'from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20';
+                const treeMoodColor = isOverall ? 'text-red-500' : isWarning ? 'text-amber-500' : 'text-emerald-500';
+                const treeAnim     = isOverall ? 'animate-pulse' : 'animate-none';
+
+                return (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Daily Budget */}
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-bold text-gray-800 dark:text-white">Daily Budget</h3>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${daily.badge}`}>{daily.status}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden relative">
+                                    <div
+                                        className={`h-5 rounded-full transition-all duration-700 ${daily.barColor}`}
+                                        style={{ width: `${Math.min(daily.pct, 100)}%` }}
+                                    />
+                                    {daily.pct > 20 && (
+                                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
+                                            {daily.pct.toFixed(0)}%
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex justify-between mt-2">
+                                    <p className={`text-xs font-semibold ${daily.label}`}>{daily.remaining}</p>
+                                    <p className="text-xs text-gray-400">{stats.budget.daily_used} / {stats.budget.daily_limit} kg</p>
+                                </div>
+                            </div>
+
+                            {/* Monthly Budget */}
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-bold text-gray-800 dark:text-white">Monthly Budget</h3>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${monthly.badge}`}>{monthly.status}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden relative">
+                                    <div
+                                        className={`h-5 rounded-full transition-all duration-700 ${monthly.barColor}`}
+                                        style={{ width: `${Math.min(monthly.pct, 100)}%` }}
+                                    />
+                                    {monthly.pct > 20 && (
+                                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
+                                            {monthly.pct.toFixed(0)}%
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex justify-between mt-2">
+                                    <p className={`text-xs font-semibold ${monthly.label}`}>{monthly.remaining}</p>
+                                    <p className="text-xs text-gray-400">{stats.budget.monthly_used} / {stats.budget.monthly_limit} kg</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Eco Health & XP Row ─────────────────────────── */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                            {/* Happy Score Tree */}
+                            <div className={`md:col-span-1 bg-gradient-to-br ${treeBg} rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center justify-center gap-2`}>
+                                <p className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Eco Health Score</p>
+                                <div className={`text-7xl select-none leading-none ${treeAnim}`} style={{
+                                    filter: isOverall ? 'grayscale(70%)' : 'none',
+                                    animation: isOverall ? undefined : 'treeSway 3s ease-in-out infinite',
+                                }}>
+                                    {treeEmoji}
+                                </div>
+                                <p className={`text-lg font-extrabold ${treeMoodColor}`}>{treeMood}</p>
+                                <p className="text-[11px] text-center text-gray-500 dark:text-gray-400 max-w-[160px]">
+                                    {isOverall ? 'Budget exceeded — take action to restore your eco balance.'
+                                    : isWarning ? 'Approaching your limit — slow down emissions.'
+                                    :             'Great job! Your carbon footprint is within safe limits.'}
+                                </p>
+                            </div>
+
+                            {/* XP Card */}
+                            <div className="md:col-span-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col justify-between">
+                                <div className="flex items-center justify-between mb-1">
+                                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">⚡ XP Points</p>
+                                    <div className="text-right">
+                                        <span className="text-2xl font-extrabold text-violet-600 dark:text-violet-400">{xp}</span>
+                                        {gamificationStats && (
+                                            <span className="ml-1 text-xs font-bold text-violet-400">Lv.{gamificationStats.level}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden mt-2">
+                                    <div
+                                        className="h-3 rounded-full bg-violet-500 transition-all duration-700"
+                                        style={{ width: `${Math.min((xp / ((gamificationStats?.level ?? 1) * 100)) * 100, 100)}%` }}
+                                    />
+                                </div>
+                                <div className="flex justify-between mt-2">
+                                    <p className="text-xs text-gray-400">{xp} / {(gamificationStats?.level ?? 1) * 100} XP to next level</p>
+                                    {gamificationStats && (
+                                        <p className="text-xs text-orange-500 font-semibold">🔥 {gamificationStats.current_streak}d streak</p>
+                                    )}
+                                </div>
+                                {daily.pct >= 100 || monthly.pct >= 100 ? (
+                                    <div className="mt-3 text-xs text-red-500 font-semibold bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+                                        ⚠️ Budget exceeded — XP penalty applied
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            {/* EcoCoins Card */}
+                            <div className="md:col-span-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col justify-between">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">🍃 EcoCoins</p>
+                                    <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{ecoCoins}</span>
+                                </div>
+                                {gamificationStats && (
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs text-gray-500">Sustainability Score:</span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                            gamificationStats.sustainability_score >= 75 ? 'bg-emerald-100 text-emerald-700'
+                                            : gamificationStats.sustainability_score >= 40 ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-red-100 text-red-700'
+                                        }`}>{gamificationStats.sustainability_score ?? 0}</span>
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-1">
+                                    {Array.from({ length: Math.min(ecoCoins, 20) }).map((_, i) => (
+                                        <span key={i} className="text-lg leading-none">🪙</span>
+                                    ))}
+                                    {ecoCoins > 20 && <span className="text-xs text-gray-400 self-center">+{ecoCoins - 20} more</span>}
+                                    {ecoCoins === 0 && <span className="text-xs text-red-500 font-semibold">No coins left — stay within budget!</span>}
+                                </div>
+                                <p className="text-xs text-gray-400 mt-3">Earn coins by staying within budget. Spend them in the reward shop.</p>
+                            </div>
+                        </div>
+                    </>
+                );
+            })()}
+
+            {/* Inline styles for tree sway animation (no extra library needed) */}
+            <style>{`
+                @keyframes treeSway {
+                    0%, 100% { transform: rotate(-3deg); }
+                    50%       { transform: rotate(3deg); }
+                }
+            `}</style>
 
             {/* Header */}
             <div className="text-center space-y-2 pt-8">
