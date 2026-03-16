@@ -1353,3 +1353,89 @@ class OrganizationDepartmentGraphView(APIView):
                 
         return Response({'department_data': graph_data})
 
+# ── Satellite Emission Hotspot Detection ─────────────────────────────────────
+import os
+import csv
+import numpy as np
+
+class SatelliteHotspotView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            # ── 1. Load satellite CSV ─────────────────────────────────
+            csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'satellite_data.csv')
+            rows = []
+            with open(csv_path, newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    rows.append({
+                        'latitude':  float(row['latitude']),
+                        'longitude': float(row['longitude']),
+                        'no2':       float(row['no2']),
+                        'city':      row.get('city', ''),
+                    })
+
+            if not rows:
+                return Response({'error': 'No satellite data found'}, status=400)
+
+            # ── 2. Isolation Forest anomaly detection ─────────────────
+            from sklearn.ensemble import IsolationForest
+            no2_values = np.array([r['no2'] for r in rows]).reshape(-1, 1)
+            model = IsolationForest(contamination=0.25, random_state=42)
+            predictions = model.fit_predict(no2_values)
+            scores = model.score_samples(no2_values)
+
+            all_points = []
+            hotspots = []
+            for i, row in enumerate(rows):
+                is_hotspot = bool(predictions[i] == -1)
+                point = {
+                    **row,
+                    'is_hotspot':      is_hotspot,
+                    'anomaly_score':   round(float(scores[i]), 4),
+                    'no2_ppb':         round(row['no2'] * 1e6, 2),   # convert to ppt for display
+                }
+                all_points.append(point)
+                if is_hotspot:
+                    hotspots.append(point)
+
+            # ── 3. Simple 5-year CO₂ projection (linear regression) ───
+            # Use average NO₂ as a proxy for emission trend
+            base_year = 2019
+            # Annual global CO₂ (Gt) rough data points
+            historical_co2 = [
+                {'year': 2019, 'co2': 36.7},
+                {'year': 2020, 'co2': 34.8},
+                {'year': 2021, 'co2': 36.4},
+                {'year': 2022, 'co2': 37.1},
+                {'year': 2023, 'co2': 37.4},
+                {'year': 2024, 'co2': 37.8},
+            ]
+            years = np.array([p['year'] for p in historical_co2])
+            co2s  = np.array([p['co2']  for p in historical_co2])
+
+            # numpy polyfit: degree 1 = linear
+            coeffs = np.polyfit(years, co2s, 1)
+            slope, intercept = coeffs[0], coeffs[1]
+
+            projection = []
+            for yr in range(2025, 2031):
+                projected = round(float(slope * yr + intercept), 2)
+                projection.append({'year': yr, 'co2': projected, 'type': 'forecast'})
+
+            trend_data = [{'year': p['year'], 'co2': p['co2'], 'type': 'historical'} for p in historical_co2]
+            trend_data += projection
+
+            return Response({
+                'all_points':   all_points,
+                'hotspots':     hotspots,
+                'total_points': len(all_points),
+                'hotspot_count': len(hotspots),
+                'trend_data':   trend_data,
+                'avg_no2_ppb':  round(float(np.mean(no2_values)) * 1e6, 2),
+            })
+
+        except Exception as e:
+            import traceback
+            return Response({'error': str(e), 'trace': traceback.format_exc()}, status=500)

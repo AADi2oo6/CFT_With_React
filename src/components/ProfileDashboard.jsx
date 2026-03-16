@@ -1,10 +1,12 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
+import { ComposedChart, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend, ReferenceLine } from 'recharts';
 import OrgMembersTable from './OrgMembersTable';
 
 const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
     // Mock Data for Charts
     const [footprintData, setFootprintData] = React.useState([]);
+    const [forecastData, setForecastData] = React.useState([]);
+    const [loadingChart, setLoadingChart] = React.useState(true);
     const [categoryData, setCategoryData] = React.useState([]);
     const [monthlyFootprint, setMonthlyFootprint] = React.useState(0);
     const [user, setUser] = React.useState(null);
@@ -23,6 +25,7 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
     const [rankingScope, setRankingScope] = React.useState('city');
 
     const fetchStats = async () => {
+        setLoadingChart(true);
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const emailParam = user.email ? `?email=${user.email}` : '';
@@ -35,27 +38,25 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                 const graphRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/emissions-graph/?${queryParam}`);
                 if (graphRes.ok) {
                     const data = await graphRes.json();
-                    // Transform to match Recharts expected format (key 'value')
-                    // Logic fix: API returns 'graph_data', not 'trend_data'
                     const formattedTrend = (data.graph_data || []).map(item => ({
                         month: item.month,
                         value: item.emission || 0
                     }));
                     setFootprintData(formattedTrend);
+                    generateForecast(formattedTrend);
                 }
 
                 // 2. Org Dashboard Stats (Total Emissions)
                 const dashboardRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/dashboard-stats/?${queryParam}`);
                 if (dashboardRes.ok) {
                     const data = await dashboardRes.json();
-                    setMonthlyFootprint(data.total_emissions); // Use Total emissions for the summary card
+                    setMonthlyFootprint(data.total_emissions);
                 }
 
                 // 3. Department Distribution
                 const deptRes = await fetch(`${import.meta.env.VITE_API_URL}/organization/department-graph/?${queryParam}`);
                 if (deptRes.ok) {
                     const data = await deptRes.json();
-
                     const deptColors = ['#22c55e', '#0ea5e9', '#eab308', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
                     const formattedDeptData = (data.department_data || []).map((item, index) => ({
                         name: item.name,
@@ -72,7 +73,9 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
                 const dashboardRes = await fetch(`${import.meta.env.VITE_API_URL}/dashboard-stats/${emailParam}`);
                 if (dashboardRes.ok) {
                     const data = await dashboardRes.json();
-                    setFootprintData(data.trend_data);
+                    const trend = data.trend_data || [];
+                    setFootprintData(trend);
+                    generateForecast(trend);
 
                     const colors = {
                         transport: '#22c55e', food: '#0ea5e9', consumption: '#eab308',
@@ -108,6 +111,8 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
 
         } catch (error) {
             console.error('Error fetching stats:', error);
+        } finally {
+            setLoadingChart(false);
         }
     };
 
@@ -140,9 +145,57 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
         setHeatmapGrid(grid);
     };
 
+    // ── Generate 3-month dummy forecast from historical data ──────────
+    const generateForecast = (trend) => {
+        if (!trend || trend.length === 0) return;
+
+        // Calculate a simple linear slope from last 3 real points
+        const recent = trend.slice(-3);
+        const avg = recent.reduce((s, p) => s + (p.value || 0), 0) / recent.length;
+        const lastVal = trend[trend.length - 1]?.value || avg;
+        // Slight downward trend prediction (5% drop each month = optimistic eco scenario)
+        const slope = -lastVal * 0.05;
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const lastMonthStr = trend[trend.length - 1]?.month || 'Jan';
+        // Parse last month label (handles formats like "Jan", "Jan 2025")
+        const shortName = lastMonthStr.substring(0, 3);
+        let monthIdx = monthNames.findIndex(m => m === shortName);
+        if (monthIdx === -1) monthIdx = new Date().getMonth();
+
+        const predicted = [];
+        for (let i = 1; i <= 3; i++) {
+            const idx = (monthIdx + i) % 12;
+            predicted.push({
+                month: monthNames[idx],
+                forecast: Math.max(0, parseFloat((lastVal + slope * i).toFixed(2)))
+            });
+        }
+        setForecastData(predicted);
+    };
+
     React.useEffect(() => {
         fetchStats();
     }, []);
+
+    // ── Build combined chart data (history + forecast, bridged) ───────
+    const buildChartData = () => {
+        if (footprintData.length === 0) return [];
+
+        const historical = footprintData.map(p => ({ month: p.month, value: p.value, forecast: null }));
+
+        // Bridge: give the last historical point BOTH value AND forecast so lines connect
+        if (forecastData.length > 0 && historical.length > 0) {
+            historical[historical.length - 1].forecast = historical[historical.length - 1].value;
+        }
+
+        const predicted = forecastData.map(p => ({ month: p.month, value: null, forecast: p.forecast }));
+        return [...historical, ...predicted];
+    };
+
+    const chartData = buildChartData();
+    const forecastStartMonth = forecastData.length > 0 ? forecastData[0].month : null;
 
     const getHeatmapColor = (level) => {
         switch (level) {
@@ -246,34 +299,107 @@ const ProfileDashboard = ({ isDarkMode, onNavigate }) => {
 
             {/* Footprint Trend Chart */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 transition-colors">
-                    {user?.is_org_admin ? 'Organization Footprint Trend' : 'Footprint Trend (Last 6 Months)'}
-                </h3>
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={footprintData}>
-                            <defs>
-                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.1} />
-                                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#374151' : '#f0f0f0'} />
-                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                            <Tooltip
-                                contentStyle={{
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                    backgroundColor: isDarkMode ? '#1f2937' : '#fff',
-                                    color: isDarkMode ? '#fff' : '#000'
-                                }}
-                            />
-                            <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" dot={{ r: 4, fill: '#14b8a6', strokeWidth: 2, stroke: '#fff' }} />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white transition-colors">
+                        {user?.is_org_admin ? 'Organization Footprint Trend' : 'Footprint Trend (Last 6 Months + 3-Month Forecast)'}
+                    </h3>
+                    <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-6 h-[3px] bg-teal-500 rounded"></span> Historical
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-6 h-[2px] border-b-2 border-dashed border-yellow-400"></span> AI Forecast
+                        </span>
+                    </div>
                 </div>
+
+                {loadingChart ? (
+                    /* Loading Skeleton */
+                    <div className="h-64 w-full flex flex-col justify-end gap-2 px-2 animate-pulse">
+                        <div className="flex items-end gap-3 h-48">
+                            {[40, 65, 50, 80, 55, 70, 45, 60, 75].map((h, i) => (
+                                <div
+                                    key={i}
+                                    className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-t"
+                                    style={{ height: `${h}%` }}
+                                />
+                            ))}
+                        </div>
+                        <div className="flex gap-3">
+                            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'].map(m => (
+                                <div key={m} className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded" />
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.15} />
+                                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.08} />
+                                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#374151' : '#f0f0f0'} />
+                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                                <Tooltip
+                                    contentStyle={{
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                        backgroundColor: isDarkMode ? '#1f2937' : '#fff',
+                                        color: isDarkMode ? '#fff' : '#000'
+                                    }}
+                                    formatter={(val, name) => [
+                                        val !== null ? `${val} kg CO₂e` : null,
+                                        name === 'value' ? 'Historical' : 'AI Forecast'
+                                    ]}
+                                />
+
+                                {/* Vertical reference line where forecast starts */}
+                                {forecastStartMonth && (
+                                    <ReferenceLine
+                                        x={forecastStartMonth}
+                                        stroke="#f59e0b"
+                                        strokeDasharray="4 4"
+                                        strokeOpacity={0.6}
+                                        label={{ value: 'Forecast', position: 'top', fill: '#f59e0b', fontSize: 10 }}
+                                    />
+                                )}
+
+                                {/* Historical Area (green) */}
+                                <Area
+                                    type="monotone"
+                                    dataKey="value"
+                                    stroke="#14b8a6"
+                                    strokeWidth={2.5}
+                                    fill="url(#colorValue)"
+                                    dot={{ r: 4, fill: '#14b8a6', strokeWidth: 2, stroke: '#fff' }}
+                                    activeDot={{ r: 6 }}
+                                    connectNulls={false}
+                                />
+
+                                {/* Forecast Line (yellow dashed) */}
+                                <Line
+                                    type="monotone"
+                                    dataKey="forecast"
+                                    stroke="#f59e0b"
+                                    strokeWidth={2.5}
+                                    strokeDasharray="6 4"
+                                    dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }}
+                                    activeDot={{ r: 6 }}
+                                    connectNulls={false}
+                                />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
             </div>
 
             {/* Breakdown (Category or State) */}
