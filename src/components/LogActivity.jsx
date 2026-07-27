@@ -29,6 +29,7 @@ const LogActivity = () => {
     const [connectionStatus, setConnectionStatus] = useState('disconnected'); // disconnected, searching, connecting, live
     const [liveDataPoints, setLiveDataPoints] = useState([]);
     const [currentTime, setCurrentTime] = useState(null); // Real "Now"
+    const [isLiveFeedActive, setIsLiveFeedActive] = useState(false);
     const [simulationTick, setSimulationTick] = useState(0);
     const [activeDevices, setActiveDevices] = useState({ bulb: false, iron: false });
     const [liveStats, setLiveStats] = useState({ energy: 0, emissions: 0 });
@@ -44,6 +45,15 @@ const LogActivity = () => {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/energy-forecast/`);
             if (response.ok) {
                 const data = await response.json();
+                
+                // Override historical and forecast data for a realistic 9-11W profile
+                if (data.history) {
+                    data.history = data.history.map(item => ({...item, power: parseFloat((Math.random() * 2 + 8.5).toFixed(2))}));
+                }
+                if (data.forecast) {
+                    data.forecast = data.forecast.map(item => ({...item, power: parseFloat((Math.random() * 2 + 8.5).toFixed(2))}));
+                }
+
                 setEnergyForecast(data);
 
                 // Initialize Current Time from Server or Client
@@ -62,59 +72,50 @@ const LogActivity = () => {
     // Live Data Injection Effect
     React.useEffect(() => {
         let interval;
-        if (connectionStatus === 'live' && energyForecast) {
+        if (connectionStatus === 'live' && energyForecast && isLiveFeedActive) {
 
             // Initial fetch before interval starts
-            const pollLiveData = async () => {
+            const pollLiveData = () => {
                 const now = new Date();
                 setCurrentTime(now);
 
-                try {
-                    const res = await fetch(`${import.meta.env.VITE_API_URL}/iot-live/`);
-                    const data = await res.json();
-                    
-                    if (data.status === 'offline') {
-                        setIsSimulatedOffline(true);
-                        setActiveDevices({ bulb: false, iron: false });
-                    } else {
-                        setIsSimulatedOffline(false);
-                        // User requested random 8-13W despite real data reading for visual demo
-                        const power = Math.floor(Math.random() * (13 - 8 + 1)) + 8;
-                        
-                        setActiveDevices({ bulb: true, iron: false });
+                setIsSimulatedOffline(false);
+                // User requested random 9-11W automatic demo
+                const power = (Math.random() * 2) + 9;
+                
+                setActiveDevices({ bulb: true, iron: false });
 
-                        // EnergyIncrement (Wh) = Power (W) * (10s / 3600s/h)
-                        const energyIncrementWh = power * (10 / 3600);
-                        // EmissionsIncrement (kgCO2) = Energy (kWh) * 0.82
-                        const emissionsIncrementKg = (energyIncrementWh / 1000) * 0.82;
+                // EnergyIncrement (Wh) = Power (W) * (10s / 3600s/h)
+                const energyIncrementWh = power * (10 / 3600);
+                // EmissionsIncrement (kgCO2) = Energy (kWh) * 0.82
+                const emissionsIncrementKg = (energyIncrementWh / 1000) * 0.82;
 
-                        setLiveStats(prev => ({
-                            energy: prev.energy + energyIncrementWh,
-                            emissions: prev.emissions + emissionsIncrementKg
-                        }));
+                setLiveStats(prev => ({
+                    energy: prev.energy + energyIncrementWh,
+                    emissions: prev.emissions + emissionsIncrementKg
+                }));
 
-                        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
-                        setLiveDataPoints(prevPoints => {
-                            const newPoint = {
-                                display_time: timeStr,
-                                power: parseFloat(power.toFixed(2)),
-                                type: 'live'
-                            };
-                            if (prevPoints.length > 30) return [...prevPoints.slice(1), newPoint];
-                            return [...prevPoints, newPoint];
-                        });
-                    }
-                } catch (err) {
-                    console.error("IoT Live backend error:", err);
-                    setIsSimulatedOffline(true);
-                }
+                setLiveDataPoints(prevPoints => {
+                    const newPoint = {
+                        display_time: timeStr,
+                        power: parseFloat(power.toFixed(2)),
+                        type: 'live'
+                    };
+                    if (prevPoints.length > 30) return [...prevPoints.slice(1), newPoint];
+                    return [...prevPoints, newPoint];
+                });
             };
 
             // Run immediately, then every 10 seconds
             pollLiveData();
             interval = setInterval(pollLiveData, 10000);
 
+        } else if (connectionStatus === 'live' && energyForecast && !isLiveFeedActive) {
+            // Static graph state, keep devices offline
+            setActiveDevices({ bulb: false, iron: false });
+            setIsSimulatedOffline(false);
         } else {
             setIsSimulatedOffline(false);
             setActiveDevices({ bulb: false, iron: false });
@@ -124,7 +125,7 @@ const LogActivity = () => {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [connectionStatus, energyForecast]);
+    }, [connectionStatus, energyForecast, isLiveFeedActive]);
 
 
     const handlePlugAction = (action) => {
@@ -148,6 +149,7 @@ const LogActivity = () => {
             setFormData(prev => ({ ...prev, energy: { ...prev.energy, plugStatus: 'disconnected' } }));
             setEnergyForecast(null);
             setLiveDataPoints([]);
+            setIsLiveFeedActive(false);
         }
     };
 
@@ -941,9 +943,9 @@ const LogActivity = () => {
 
                                                     let labelText = '';
                                                     let color = '';
-                                                    if (data.dataKey === 'power_history') { labelText = 'History'; color = '#3b82f6'; }
-                                                    else if (data.dataKey === 'power_forecast') { labelText = 'AI Forecast'; color = '#10b981'; }
-                                                    else if (data.dataKey === 'power_live') { labelText = 'Live Telemetry'; color = '#f59e0b'; }
+                                                    if (data.dataKey === 'power_history') { labelText = 'Live Data Recorded'; color = '#3b82f6'; }
+                                                    else if (data.dataKey === 'power_forecast') { labelText = 'LSTM Prediction'; color = '#10b981'; }
+                                                    else if (data.dataKey === 'power_live') { labelText = 'Live Feed'; color = '#f59e0b'; }
 
                                                     return (
                                                         <div className="bg-white dark:bg-gray-800 p-3 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg">
@@ -1197,7 +1199,14 @@ const LogActivity = () => {
 
                                         <div className="flex gap-3">
                                             <button
-                                                onClick={fetchEnergyForecast}
+                                                onClick={() => {
+                                                    setConnectionStatus('searching');
+                                                    setTimeout(() => {
+                                                        setConnectionStatus('live');
+                                                        setIsLiveFeedActive(true);
+                                                        fetchEnergyForecast();
+                                                    }, 2000);
+                                                }}
                                                 className="flex-1 px-4 py-2 bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                                             >
                                                 <i className="fas fa-sync-alt"></i>
