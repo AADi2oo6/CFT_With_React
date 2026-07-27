@@ -1,3 +1,9 @@
+<div align="center">
+
+| [Main Project README](./README.md) | [Mathematical & NILM Report](./report.md) | [Satellite NO2 Detection Report](./SATELLITE_DETECTION_REPORT.md) | [IoT Hardware Schematics](./README.md#4-precision-iot-monitoring--hardware-edge-layer) |
+|:---:|:---:|:---:|:---:|
+
+</div>
 # EcoTrack: Multi-Modal Intelligent Carbon Monitoring & Geospatial Prediction Ecosystem
 
 ![React](https://img.shields.io/badge/React_18+-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)

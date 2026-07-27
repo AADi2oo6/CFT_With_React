@@ -1,3 +1,10 @@
+<div align="center">
+
+| [Main Project README](./README.md) | [Mathematical & NILM Report](./report.md) | [Satellite NO2 Detection Report](./SATELLITE_DETECTION_REPORT.md) | [IoT Hardware Schematics](./README.md#4-precision-iot-monitoring--hardware-edge-layer) |
+|:---:|:---:|:---:|:---:|
+
+</div>
+
 # 📡 Satellite Emission Hotspot Detection — Technical Report
 
 ## 1. Overview & Purpose
